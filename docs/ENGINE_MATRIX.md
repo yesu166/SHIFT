@@ -24,4 +24,4 @@ Engine selection depends on actual capability, exact version, license, notices, 
 - Measures actual input/output bytes; the archive can be larger than the inputs.
 - Does not intentionally overwrite an existing output.
 
-These are source-level claims until CI tests pass. Independent Windows extraction, ZIP64 and large-file behavior remain release gates.
+Windows CI now includes an independent `Expand-Archive` extraction test with a Unicode filename and byte-for-byte content verification. Windows Explorer GUI verification, ZIP64 stress tests, and large-file stress tests remain release gates.

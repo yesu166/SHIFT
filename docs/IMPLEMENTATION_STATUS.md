@@ -19,13 +19,13 @@ Last reviewed: 2026-10-18
 | In-app quick-action wheel | IMPLEMENTED | Shows only registry actions marked available; Escape closes it. |
 | Native file picker and app-window drop | IMPLEMENTED | Uses Tauri dialog API and the typed webview drag/drop events; Windows runtime verification remains pending. |
 | ZIP creation engine | IMPLEMENTED | Rust source streams files using DEFLATE, writes a temporary output, validates entries, measures size, and avoids replacing existing archives. |
-| ZIP unit tests | TESTED | Windows CI run 39150458238 passed all five ZIP unit tests and Clippy for this source revision; independent Windows Explorer extraction is still required. |
+| ZIP unit tests | TESTED | Prior Windows CI run passed all five core ZIP tests and Clippy. A Windows-only independent PowerShell `Expand-Archive` interoperability test has been added; its result is pending the current CI run. |
 | ZIP output validated with Windows Explorer | BLOCKED | Requires independent Windows-compatible extraction verification. |
 | Frontend typecheck/lint/test/build | IN_PROGRESS | The first CI run exposed a frontend parse error and Rust format differences. The follow-up exposed additional TypeScript typing issues; these are being corrected with each CI cycle. |
 | PDF operations | PLANNED | Evaluate qpdf and a PDF-writing engine, then add real-output tests. |
 | Office-to-PDF conversion | PLANNED | Detect optional LibreOffice and test document layout before enabling conversion. |
 | Cross-app Shift-drag | BLOCKED | Must prove a documented, reliable Windows method for obtaining the active drag payload. |
-| Windows installer | PLANNED | Requires successful Windows build and a clean install/uninstall test. |
+| Windows installer | IN_PROGRESS | CI now attempts an unsigned Windows x64 NSIS package, records file size/SHA-256, and uploads the installer artifact; actual installation/uninstallation and user-machine verification remain required. |
 | Lockfiles and full license inventory | IN_PROGRESS | package-lock.json and src-tauri/Cargo.lock are committed by CI (commit bc576c6); npm audit reported 0 vulnerabilities after upgrading Vitest. Complete transitive license/NOTICE audit remains outstanding. |
 
 ## Implementation notes

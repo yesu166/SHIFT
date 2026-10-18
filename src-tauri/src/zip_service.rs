@@ -355,4 +355,51 @@ mod tests {
         assert!(result.is_err());
         assert!(!output.join("SHIFT Archive.zip").exists());
     }
+
+
+    #[cfg(windows)]
+    #[test]
+    fn generated_zip_extracts_with_the_independent_windows_expand_archive_cmdlet() {
+        use std::process::Command;
+
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("résumé 文件.txt");
+        let original = b"Independent Windows ZIP interoperability check.\n";
+        write_file(&source, original);
+        let output = temp.path().join("archives");
+        let result = create_zip_in_dir(
+            &[source.to_string_lossy().into_owned()],
+            &output,
+            Some("interoperability-check"),
+        )
+        .unwrap();
+
+        let destination = temp.path().join("extracted");
+        let script = temp.path().join("extract.ps1");
+        fs::write(
+            &script,
+            "param([string]$Archive, [string]$Destination)\n\
+             $ErrorActionPreference = 'Stop'\n\
+             Expand-Archive -LiteralPath $Archive -DestinationPath $Destination\n",
+        )
+        .unwrap();
+
+        let status = Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+            ])
+            .arg(&script)
+            .arg(&result.output_path)
+            .arg(&destination)
+            .status()
+            .expect("Windows PowerShell must be available on the Windows CI runner");
+
+        assert!(status.success(), "Windows Expand-Archive rejected the generated ZIP");
+        assert_eq!(fs::read(destination.join("résumé 文件.txt")).unwrap(), original);
+    }
+}
 }
