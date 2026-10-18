@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { formatBytes, formatSignedBytes } from "./lib/format";
 import { getAvailableOperations, type OperationDefinition } from "./lib/operations";
+import { getRadialPosition } from "./lib/radial";
 
 type PageId = "home" | "convert" | "organize" | "compress" | "edit" | "protect" | "history" | "settings";
 type ThemeMode = "light" | "dark";
@@ -79,7 +80,14 @@ function App() {
   const [theme, setTheme] = useState<ThemeMode>(() => localStorage.getItem("shift.theme") === "dark" ? "dark" : "light");
   const [reducedMotion, setReducedMotion] = useState(() => localStorage.getItem("shift.reducedMotion") === "true");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const wheelRef = useRef<HTMLDivElement>(null);
+  const wheelTriggerRef = useRef<HTMLButtonElement>(null);
   const isDesktop = isTauri();
+  const closeWheel = useCallback(() => {
+    setWheelOpen(false);
+    wheelTriggerRef.current?.focus();
+  }, []);
+  const emptyRadialPosition = getRadialPosition(0, 1);
 
   const availableOperations = useMemo(() => getAvailableOperations(files.map((file) => file.name)), [files]);
   const canCreateZip = isDesktop && files.length > 0 && files.every((file) => Boolean(file.path)) && !busy;
@@ -121,10 +129,31 @@ function App() {
   }, [isDesktop]);
   useEffect(() => {
     if (!wheelOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setWheelOpen(false); };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [wheelOpen]);
+    const handleKeys = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeWheel();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        wheelRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])') ?? [],
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeys);
+    wheelRef.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus();
+    return () => window.removeEventListener("keydown", handleKeys);
+  }, [wheelOpen, closeWheel]);
   useEffect(() => {
     if (!toast) return;
     const timeout = window.setTimeout(() => setToast(null), 5200);
@@ -203,15 +232,18 @@ function App() {
   }, [isDesktop]);
 
   const selectOperation = useCallback((operation: OperationDefinition) => {
-    setWheelOpen(false);
+    closeWheel();
     if (operation.id === "create-zip") {
       setPage("compress");
-      if (files.length === 0) void chooseFiles();
-      else void createZip();
+      if (files.length === 0) {
+        void chooseFiles();
+      } else {
+        setToast({ message: "Ready to create your archive. Review the name and destination, then choose Create ZIP archive.", kind: "info" });
+      }
     } else {
       setToast({ message: operation.unavailableReason ?? "This operation is not enabled.", kind: "info" });
     }
-  }, [chooseFiles, createZip, files.length]);
+  }, [chooseFiles, closeWheel, files.length]);
 
   const currentTitle = NAV_ITEMS.find((item) => item.id === page)?.label ?? "Home";
 
@@ -308,10 +340,43 @@ function App() {
       {!(["home", "compress", "history", "settings"] as PageId[]).includes(page) && <div className="page planned-page"><div className="eyebrow"><Sparkles size={14} /> {PLANNED[page].eyebrow}</div><div className="planned-illustration"><div className="planned-ring ring-a" /><div className="planned-ring ring-b" /><div className="planned-center"><Layers3 size={28} /></div><span className="planned-orbit orbit-a"><FileText size={18} /></span><span className="planned-orbit orbit-b"><ShieldCheck size={18} /></span></div><h1>{PLANNED[page].title}</h1><p className="planned-description">{PLANNED[page].description}</p><div className="planned-status"><i /><div><strong>Not enabled in this build</strong><small>{PLANNED[page].engine}</small></div></div><p className="planned-footnote">No fake conversions. This operation will appear here after its engine and output tests pass.</p><button className="button button-primary" onClick={() => setPage("compress")} type="button">Use the ZIP tool instead <ArrowRight size={16} /></button></div>}
     </main>
 
-    <button className="floating-wheel-trigger" type="button" aria-label="Quick action wheel" onClick={() => setWheelOpen((v) => !v)}><Plus size={22} /></button>
-    {wheelOpen && <><button className="wheel-scrim" type="button" aria-label="Close quick action wheel" onClick={() => setWheelOpen(false)} /><div className="action-wheel" role="dialog" aria-modal="true" aria-labelledby="wheel-title"><div className="wheel-head"><span className="wheel-kicker">QUICK ACTIONS</span><button className="wheel-close" type="button" onClick={() => setWheelOpen(false)} aria-label="Close"><X size={16} /></button></div><h2 id="wheel-title">{files.length ? "What should happen next?" : "Start with a file."}</h2><p>{files.length ? "Only operations enabled for this selection are shown." : "Pick files first. This menu uses the same typed operation registry as the workspace."}</p>
-      {availableOperations.length ? <div className="wheel-actions">{availableOperations.map((operation) => <button className="wheel-action" key={operation.id} onClick={() => selectOperation(operation)} type="button"><span className="wheel-action-icon"><Archive size={18} /></span><span><strong>{operation.title}</strong><small>{operation.outputLabel}</small></span><ArrowUpRight size={17} /></button>)}</div> : <button className="wheel-empty" type="button" onClick={() => { setWheelOpen(false); void chooseFiles(); }}><Upload size={19} /><span>Choose files</span><ArrowRight size={16} /></button>}
-      <div className="wheel-footer"><Command size={13} /> ESC TO CLOSE <span>·</span> OPERATION REGISTRY</div></div></>}
+    <button ref={wheelTriggerRef} className="floating-wheel-trigger" type="button" aria-label="Quick action wheel" onClick={() => setWheelOpen((v) => !v)} aria-expanded={wheelOpen}><Plus size={22} /></button>
+    {wheelOpen && <>
+      <button className="wheel-scrim" type="button" aria-label="Close quick action wheel" onClick={closeWheel} />
+      <div ref={wheelRef} className="action-wheel" role="dialog" aria-modal="true" aria-labelledby="wheel-title">
+        <div className="wheel-orbit" aria-hidden="true" />
+        <div className="wheel-center" id="wheel-title">
+          <span className="brand-mark"><span /></span>
+          <strong>{files.length ? "What next?" : "Start with a file."}</strong>
+          <small>{files.length ? (availableOperations.length === 1 ? "1 action ready" : availableOperations.length + " actions ready") : "Choose files to get started"}</small>
+        </div>
+        <button className="wheel-close" type="button" onClick={closeWheel} aria-label="Close quick action wheel"><X size={15} /></button>
+        {availableOperations.length > 0 ? availableOperations.map((operation, index) => {
+          const point = getRadialPosition(index, availableOperations.length);
+          return <button
+            className="wheel-action radial-action"
+            key={operation.id}
+            style={{ left: point.x + "%", top: point.y + "%" }}
+            onClick={() => selectOperation(operation)}
+            type="button"
+            aria-label={operation.title + ": " + operation.outputLabel}
+          >
+            <span className="wheel-action-icon"><Archive size={18} /></span>
+            <strong>{operation.title}</strong>
+          </button>;
+        }) : <button
+          className="wheel-action radial-action"
+          style={{ left: emptyRadialPosition.x + "%", top: emptyRadialPosition.y + "%" }}
+          onClick={() => { closeWheel(); void chooseFiles(); }}
+          type="button"
+          aria-label="Choose files"
+        >
+          <span className="wheel-action-icon"><Upload size={18} /></span>
+          <strong>Choose files</strong>
+        </button>}
+        <div className="wheel-footer"><Command size={13} /> ESC TO CLOSE <span>·</span> AVAILABLE ACTIONS</div>
+      </div>
+    </>}
 
     {toast && <div className={"toast toast-" + toast.kind} role="status" aria-live="polite">{toast.kind === "success" ? <CheckCircle2 size={19} /> : toast.kind === "error" ? <X size={18} /> : <Activity size={18} />}<span>{toast.message}</span><button type="button" aria-label="Dismiss message" onClick={() => setToast(null)}><X size={15} /></button></div>}
   </div>;
