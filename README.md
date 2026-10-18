@@ -6,7 +6,7 @@ The first workflow under implementation is **Compress files to ZIP**: choose fil
 
 ## Current status
 - Implemented in source: React workspace, shared operation registry, quick-action wheel, light/dark theme, reduced-motion setting, native file picker/drop bridge, session history and Rust ZIP engine.
-- CI runs automatically on pushes and pull requests. A source commit is not proof that tests passed; check [SHIFT CI](.github/workflows/ci.yml) and its workflow status.
+- Latest frontend CI passed typecheck, lint, 8/8 unit tests and production build, with `npm audit` reporting 0 vulnerabilities. The Rust unit tests and Clippy also passed on an earlier run with the same ZIP service source. See [SHIFT CI](.github/workflows/ci.yml); the latest full run must finish before release readiness can be claimed.
 - Not yet verified: packaged Windows app, installer, cross-monitor/DPI behavior or independent Windows Explorer extraction.
 - PDF actions, password protection and Office conversion remain unavailable until real engines and output tests are added.
 - System-wide Shift-drag is not claimed. A global hotkey does not provide another process's active drag payload by itself.

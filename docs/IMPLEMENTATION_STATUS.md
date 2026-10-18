@@ -19,14 +19,14 @@ Last reviewed: 2026-10-18
 | In-app quick-action wheel | IMPLEMENTED | Shows only registry actions marked available; Escape closes it. |
 | Native file picker and app-window drop | IMPLEMENTED | Uses Tauri dialog API and the typed webview drag/drop events; Windows runtime verification remains pending. |
 | ZIP creation engine | IMPLEMENTED | Rust source streams files using DEFLATE, writes a temporary output, validates entries, measures size, and avoids replacing existing archives. |
-| ZIP automated tests | IN_PROGRESS | Tests are in source; CI results must pass before calling them verified. |
+| ZIP unit tests | TESTED | Windows CI run 39150458238 passed all five ZIP unit tests and Clippy for this source revision; independent Windows Explorer extraction is still required. |
 | ZIP output validated with Windows Explorer | BLOCKED | Requires independent Windows-compatible extraction verification. |
 | Frontend typecheck/lint/test/build | IN_PROGRESS | The first CI run exposed a frontend parse error and Rust format differences. The follow-up exposed additional TypeScript typing issues; these are being corrected with each CI cycle. |
 | PDF operations | PLANNED | Evaluate qpdf and a PDF-writing engine, then add real-output tests. |
 | Office-to-PDF conversion | PLANNED | Detect optional LibreOffice and test document layout before enabling conversion. |
 | Cross-app Shift-drag | BLOCKED | Must prove a documented, reliable Windows method for obtaining the active drag payload. |
 | Windows installer | PLANNED | Requires successful Windows build and a clean install/uninstall test. |
-| Lockfiles and full license inventory | IN_PROGRESS | A branch-head-guarded CI job generates and commits package-lock.json and Cargo.lock; npm audit must be clean before frontend checks pass. |
+| Lockfiles and full license inventory | IN_PROGRESS | package-lock.json and src-tauri/Cargo.lock are committed by CI (commit bc576c6); npm audit reported 0 vulnerabilities after upgrading Vitest. Complete transitive license/NOTICE audit remains outstanding. |
 
 ## Implementation notes
 - create_zip executes on Tauri's blocking task pool.
@@ -45,4 +45,4 @@ Last reviewed: 2026-10-18
 
 
 ## Security follow-up
-The initial dependency audit identified three npm advisories in the Vitest 3 resolution (one moderate and two critical, involving @vitest/mocker and tinypool). The declared Vitest range has been upgraded to ^5.0.5, and CI now fails if npm audit reports any vulnerability. The next CI result must confirm that the upgraded dependency tree is clean.
+The initial dependency audit identified three npm advisories in the Vitest 3 resolution (one moderate and two critical, involving @vitest/mocker and tinypool). The declared Vitest range was upgraded to ^5.0.5; the latest frontend audit reports 0 vulnerabilities and CI fails if a later npm audit reports any advisory.

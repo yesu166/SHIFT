@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Inspect dependency advisories
         shell: bash
         run: |
@@ -59,16 +59,16 @@ jobs:
         with:
           components: rustfmt, clippy
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
       - name: Format Rust sources
         working-directory: src-tauri
         run: cargo fmt --all
       - name: Rust unit and integration tests
         working-directory: src-tauri
-        run: cargo test --all-targets
+        run: cargo test --locked --all-targets
       - name: Rust lint
         working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
       - name: Upload Cargo lockfile
         if: always()
         uses: actions/upload-artifact@v4
