@@ -87,7 +87,7 @@ jobs:
       - name: Checkout feature branch
         uses: actions/checkout@v4
         with:
-          ref: \${{ github.ref }}
+          ref: ${{ github.ref }}
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -101,10 +101,10 @@ jobs:
       - name: Commit lockfiles if this run is still at branch head
         shell: bash
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          remote_head="$(git ls-remote origin "refs/heads/\${GITHUB_REF_NAME}" | cut -f1)"
+          remote_head="$(git ls-remote origin "refs/heads/${GITHUB_REF_NAME}" | cut -f1)"
           if [[ "$remote_head" != "$GITHUB_SHA" ]]; then
             echo "Branch advanced during CI; skipping automatic lockfile commit."
             exit 0
@@ -117,4 +117,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "build: lock resolved npm and Cargo dependencies"
-          git push origin "HEAD:\${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
