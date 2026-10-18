@@ -26,7 +26,7 @@ Last reviewed: 2026-10-18
 | Office-to-PDF conversion | PLANNED | Detect optional LibreOffice and test document layout before enabling conversion. |
 | Cross-app Shift-drag | BLOCKED | Must prove a documented, reliable Windows method for obtaining the active drag payload. |
 | Windows installer | PLANNED | Requires successful Windows build and a clean install/uninstall test. |
-| Lockfiles and full license inventory | IN_PROGRESS | Generate package-lock.json and Cargo.lock, then audit resolved dependency notices. |
+| Lockfiles and full license inventory | IN_PROGRESS | A branch-head-guarded CI job generates and commits package-lock.json and Cargo.lock; npm audit must be clean before frontend checks pass. |
 
 ## Implementation notes
 - create_zip executes on Tauri's blocking task pool.
@@ -42,3 +42,7 @@ Last reviewed: 2026-10-18
 3. Independently extract generated ZIP output on Windows and verify bytes/content.
 4. Build and inspect the NSIS package; test first launch and uninstall output preservation.
 5. Evaluate qpdf and LibreOffice integrations after the ZIP workflow passes.
+
+
+## Security follow-up
+The initial dependency audit identified three npm advisories in the Vitest 3 resolution (one moderate and two critical, involving @vitest/mocker and tinypool). The declared Vitest range has been upgraded to ^5.0.5, and CI now fails if npm audit reports any vulnerability. The next CI result must confirm that the upgraded dependency tree is clean.

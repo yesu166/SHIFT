@@ -26,7 +26,7 @@ jobs:
         shell: bash
         run: |
           npm audit --json > npm-audit.json || true
-          node -e "const a=require('./npm-audit.json'); console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities, packages:Object.entries(a.vulnerabilities||{}).map(([name,v])=>({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable}))}, null, 2))"
+          node -e "const a=require('./npm-audit.json'); const v=a.metadata?.vulnerabilities; console.log(JSON.stringify({metadata:v, packages:Object.entries(a.vulnerabilities||{}).map(([name,x])=>({name,severity:x.severity,range:x.range,fixAvailable:x.fixAvailable}))}, null, 2)); if ((v?.total ?? 0) > 0) process.exit(1)"
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
@@ -75,3 +75,46 @@ jobs:
         with:
           name: rust-resolution
           path: src-tauri/Cargo.lock
+
+
+  lockfiles:
+    name: Resolve and commit dependency lockfiles
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/shift-windows-app'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: \${{ github.ref }}
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Set up stable Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Generate resolved lockfiles
+        run: |
+          npm install --package-lock-only
+          cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
+      - name: Commit lockfiles if this run is still at branch head
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          set -euo pipefail
+          remote_head="$(git ls-remote origin "refs/heads/\${GITHUB_REF_NAME}" | cut -f1)"
+          if [[ "$remote_head" != "$GITHUB_SHA" ]]; then
+            echo "Branch advanced during CI; skipping automatic lockfile commit."
+            exit 0
+          fi
+          git add package-lock.json src-tauri/Cargo.lock
+          if git diff --cached --quiet; then
+            echo "Lockfiles are already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "build: lock resolved npm and Cargo dependencies"
+          git push origin "HEAD:\${GITHUB_REF_NAME}"
