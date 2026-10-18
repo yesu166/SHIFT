@@ -29,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "icon": ["icons/icon.ico"],
     "category": "Utility",
     "shortDescription": "Local-first document toolbox",
     "longDescription": "SHIFT compresses files into validated ZIP archives locally and will expand into a verified document toolbox."
