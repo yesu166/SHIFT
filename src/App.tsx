@@ -8,7 +8,7 @@ import {
   Sun, Trash2, Upload, X, Zap, type LucideIcon,
 } from "lucide-react";
 import { formatBytes, formatSignedBytes } from "./lib/format";
-import { getAvailableOperations, OPERATIONS, type OperationDefinition } from "./lib/operations";
+import { getAvailableOperations, type OperationDefinition } from "./lib/operations";
 
 type PageId = "home" | "convert" | "organize" | "compress" | "edit" | "protect" | "history" | "settings";
 type ThemeMode = "light" | "dark";
@@ -110,7 +110,7 @@ function App() {
         else if (event.payload.type === "leave") setIsDragging(false);
         else if (event.payload.type === "drop") {
           setIsDragging(false);
-          setFiles((current) => uniqueFiles(current, event.payload.paths.map((path) => ({ id: makeId(), name: leafName(path), path })));
+          setFiles((current) => uniqueFiles(current, event.payload.paths.map((path) => ({ id: makeId(), name: leafName(path), path }))));
           setPage("compress");
         }
       }),

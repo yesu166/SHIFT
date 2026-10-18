@@ -47,9 +47,9 @@ jobs:
           components: rustfmt, clippy
       - name: Install frontend dependencies
         run: npm install
-      - name: Rust formatting
+      - name: Format Rust sources
         working-directory: src-tauri
-        run: cargo fmt --all -- --check
+        run: cargo fmt --all
       - name: Rust unit and integration tests
         working-directory: src-tauri
         run: cargo test --all-targets

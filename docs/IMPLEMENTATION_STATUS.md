@@ -2,32 +2,43 @@
 
 Last reviewed: 2026-10-18
 
-## Verified repository state
-- GitHub repository: `yesu166/SHIFT`.
-- Default branch: `main`.
-- Visibility: public.
-- GitHub API reports push permission for the connected account.
-- The repository was empty before this bootstrap; it had no commits, files, or branches.
-- This environment has Node.js/npm available, but no `cargo`, `rustc`, or `tauri` executable was found on PATH in the inspected container. This is not a Windows environment.
+## Repository and environment
+- Repository: yesu166/SHIFT, default branch main; implementation branch feat/shift-windows-app.
+- The repository was empty before the documentation bootstrap.
+- The implementation is committed through the GitHub API. No local Windows desktop session is available here.
+- GitHub Actions has executed the initial CI run; it exposed a TypeScript parse error and Rust formatting differences. Those are being corrected, and a passing run is required before claiming tests pass.
+- No Windows installer or standalone Windows runtime test is claimed.
 
 ## Feature status
 
 | Area | Status | Evidence / next action |
 |---|---|---|
-| Repository documentation bootstrap | IMPLEMENTED | README and project rules/docs are being added. |
-| React/Vite frontend | PLANNED | Create scaffold and lockfile; run install, tests, lint, and production build. |
-| Tauri 2 / Rust foundation | PLANNED | Scaffold native project and verify Rust/Windows prerequisites on a Windows machine. |
-| Typed operation registry | PLANNED | Create one shared registry and compatibility model. |
-| ZIP creation | PLANNED | Implement streaming archive creation, safe output naming, metrics, and independent validation. |
-| PDF operations | PLANNED | Verify qpdf integration/licensing and implement real output validation. |
-| DOCX/XLSX/PPTX to PDF | PLANNED | Evaluate installed LibreOffice; do not bundle/download silently. |
-| In-app radial menu | PLANNED | Implement keyboard-accessible menu and valid-action filtering. |
-| Cross-application Shift-drag | BLOCKED | Must prove how a dragged file payload is obtained safely on Windows; a global hotkey alone does not provide it. |
-| Windows installer | PLANNED | Requires a working Tauri project and actual Windows packaging test. |
-| Windows runtime verification | BLOCKED | Current execution environment is Linux and lacks Rust/Tauri CLI. |
+| React/Vite application source | IMPLEMENTED | Frontend source committed to the feature branch; rerun typecheck/lint/unit tests/build. |
+| Theme and reduced-motion settings | IMPLEMENTED | User settings affect CSS and persist in localStorage. |
+| Typed operation registry | IMPLEMENTED | src/lib/operations.ts is shared by workspace filtering and the quick-action wheel. |
+| In-app quick-action wheel | IMPLEMENTED | Shows only registry actions marked available; Escape closes it. |
+| Native file picker and app-window drop | IMPLEMENTED | Uses Tauri dialog API and the typed webview drag/drop events; Windows runtime verification remains pending. |
+| ZIP creation engine | IMPLEMENTED | Rust source streams files using DEFLATE, writes a temporary output, validates entries, measures size, and avoids replacing existing archives. |
+| ZIP automated tests | IN_PROGRESS | Tests are in source; results need a passing CI run. |
+| ZIP output validated with Windows Explorer | BLOCKED | Requires independent Windows-compatible extraction verification. |
+| Frontend typecheck/lint/test/build | IN_PROGRESS | First CI run identified and helped diagnose a parse error; rerun after correction. |
+| PDF operations | PLANNED | Evaluate qpdf and a PDF-writing engine, then add real-output tests. |
+| Office-to-PDF conversion | PLANNED | Detect optional LibreOffice and test document layout before enabling conversion. |
+| Cross-app Shift-drag | BLOCKED | Must prove a documented, reliable Windows method for obtaining the active drag payload. |
+| Windows installer | PLANNED | Requires successful Windows build and a clean install/uninstall test. |
+| Lockfiles and full license inventory | IN_PROGRESS | Generate package-lock.json and Cargo.lock, then audit resolved dependency notices. |
 
-## Current blocker
-The current execution workspace is not a checkout of SHIFT, and the GitHub repo was empty. I can bootstrap source files through the connected GitHub API, but cannot honestly claim to have run the Windows build, Tauri build, engine integrations, or end-to-end document tests from this environment.
+## Implementation notes
+- create_zip executes on Tauri's blocking task pool.
+- Output directory is the user's Documents folder joined with SHIFT/Archives.
+- Output filenames use collision-safe numbered suffixes.
+- Browser preview does not treat browser File objects as native paths; ZIP execution is enabled only in Tauri with native paths.
+- Planned operations remain unavailable instead of producing fake outputs.
+- ZIP creation rejects overlapping selections; input folders and their child files cannot both be selected into one archive job.
 
-## Next executable task
-Add a minimal reproducible React + TypeScript + Vite frontend and establish its dependency lockfile; then add the Tauri 2 Rust foundation when Rust and the target Windows prerequisites are available. Deliver the first real end-to-end workflow (compressed ZIP creation) before exposing a broad set of menu actions.
+## Next executable tasks
+1. Rerun CI and fix every real frontend/Rust/test failure.
+2. Generate and commit package-lock.json and src-tauri/Cargo.lock.
+3. Independently extract generated ZIP output on Windows and verify bytes/content.
+4. Build and inspect the NSIS package; test first launch and uninstall output preservation.
+5. Evaluate qpdf and LibreOffice integrations after the ZIP workflow passes.

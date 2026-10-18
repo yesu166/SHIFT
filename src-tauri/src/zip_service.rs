@@ -171,9 +171,15 @@ fn gather_entries(inputs: &[String], output_dir: &Path) -> Result<(Vec<Entry>, u
 
         let canonical = fs::canonicalize(&provided)
             .map_err(|error| format!("Cannot resolve selected path {}: {error}", provided.display()))?;
-        if !canonical_roots.insert(canonical.clone()) {
-            return Err(format!("The same path was selected more than once: {}", provided.display()));
+        if canonical_roots.iter().any(|root: &PathBuf| {
+            canonical.starts_with(root) || root.starts_with(&canonical)
+        }) {
+            return Err(format!(
+                "Selected paths overlap: {}. Choose each file once and do not select a folder together with items inside it.",
+                provided.display()
+            ));
         }
+        canonical_roots.insert(canonical.clone());
         if canonical == output_dir {
             return Err("The SHIFT Archives folder cannot be archived into itself.".to_owned());
         }
