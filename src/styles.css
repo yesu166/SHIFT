@@ -17,3 +17,6 @@
 @media(max-width:1100px){.sidebar{width:220px;flex-basis:220px}.topbar{padding:0 28px}.page{padding-left:28px;padding-right:28px}.intro-orbit{margin-right:0;transform:scale(.88);transform-origin:right top}.action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.action-card:last-child{display:none}.compress-layout{grid-template-columns:minmax(0,1fr)}.options-column{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.8fr);align-items:start}}
 @media(max-width:850px){body{min-width:680px}.sidebar{width:190px;flex-basis:190px;padding-left:10px;padding-right:10px}.topbar{padding:0 20px}.page{padding-left:20px;padding-right:20px}.page-intro{min-height:185px}.page-intro h1{font-size:39px}.intro-orbit{width:145px;margin-right:-7px;transform:scale(.75)}.action-grid{grid-template-columns:1fr}.action-card{min-height:115px}.action-card:last-child{display:flex}.bottom-grid,.settings-layout{grid-template-columns:1fr}.options-column{grid-template-columns:1fr}.history-table-head,.history-row{grid-template-columns:minmax(0,1.5fr) minmax(80px,.7fr) minmax(100px,.9fr)}.history-table-head>:last-child,.history-row>:last-child{display:none}}
 :root[data-reduced-motion=true] *{scroll-behavior:auto}
+
+.card-tools{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.drop-actions{flex-wrap:wrap}

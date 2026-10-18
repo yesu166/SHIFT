@@ -151,6 +151,30 @@ function App() {
     }
   }, [isDesktop]);
 
+  const chooseFolders = useCallback(async () => {
+    if (!isDesktop) {
+      setToast({ message: "Folder selection is available in the Windows desktop build.", kind: "info" });
+      return;
+    }
+    try {
+      const selected = await open({
+        multiple: true,
+        directory: true,
+        title: "Choose folders for your SHIFT archive",
+      });
+      if (!selected) return;
+      const paths = Array.isArray(selected) ? selected : [selected];
+      setFiles((current) => uniqueFiles(current, paths.map((path) => ({
+        id: makeId(),
+        name: leafName(path),
+        path,
+      }))));
+      setPage("compress");
+    } catch (error) {
+      setToast({ message: "The folder picker failed: " + String(error), kind: "error" });
+    }
+  }, [isDesktop]);
+
   const removeFile = useCallback((id: string) => setFiles((current) => current.filter((file) => file.id !== id)), []);
   const createZip = useCallback(async () => {
     if (!canCreateZip) {
@@ -224,7 +248,7 @@ function App() {
         <div className={"drop-card" + (isDragging ? " drag-active" : "")} onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }} onDragOver={(e) => e.preventDefault()} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragging(false); }} onDrop={(e) => { e.preventDefault(); setIsDragging(false); addBrowserFiles(e.dataTransfer.files); }}>
           <input ref={fileInputRef} className="hidden-file-input" type="file" multiple onChange={(e) => { if (e.target.files) addBrowserFiles(e.target.files); e.currentTarget.value = ""; }} />
           <div className="drop-inner"><div className="upload-illustration"><div className="upload-sheet"><FileText size={23} /><span /></div><div className="upload-arrow"><Upload size={18} /></div></div>
-            <div className="drop-copy"><h2>Drop files to get moving</h2><p>PDF, Word, Excel, PowerPoint, images, folders — bundle anything into a ZIP.</p><div className="drop-actions"><button className="button button-primary" type="button" onClick={chooseFiles}>Choose files <ArrowRight size={16} /></button><span>or drag them here</span></div></div>
+            <div className="drop-copy"><h2>Drop files to get moving</h2><p>PDF, Word, Excel, PowerPoint, images, folders — bundle anything into a ZIP.</p><div className="drop-actions"><button className="button button-primary" type="button" onClick={chooseFiles}>Choose files <ArrowRight size={16} /></button><button className="button button-secondary" type="button" onClick={chooseFolders}><FolderOpen size={15} /> Choose folders</button><span>or drag them here</span></div></div>
             <div className="drop-format-row"><span>PDF</span><span>DOCX</span><span>XLSX</span><span>PPTX</span><span>+ ANY FILE</span></div>
           </div>
         </div>
@@ -246,7 +270,7 @@ function App() {
       {page === "compress" && <div className="page">
         <div className="page-title-row"><div><div className="eyebrow"><Archive size={14} /> ARCHIVE WORKSPACE</div><h1>Compress files.</h1><p>One neat archive. Originals left exactly where they are.</p></div><button className="button button-secondary" onClick={openOutputFolder} type="button"><FolderOpen size={16} /> Output folder</button></div>
         <div className="compress-layout">
-          <section className="workspace-card"><div className="card-topline"><span className="step-number">01</span><div><h2>Add your files</h2><p>Mix formats freely. Folders and nested files are supported.</p></div><button className="icon-button subtle" type="button" onClick={chooseFiles} title="Add files" aria-label="Add files"><Plus size={19} /></button></div>
+          <section className="workspace-card"><div className="card-topline"><span className="step-number">01</span><div><h2>Add your files</h2><p>Mix formats freely. Folders and nested files are supported.</p></div><div className="card-tools"><button className="icon-button subtle" type="button" onClick={chooseFiles} title="Add files" aria-label="Add files"><Plus size={19} /></button><button className="icon-button subtle" type="button" onClick={chooseFolders} title="Add folders" aria-label="Add folders"><FolderOpen size={16} /></button></div></div>
             <input ref={fileInputRef} className="hidden-file-input" type="file" multiple onChange={(e) => { if (e.target.files) addBrowserFiles(e.target.files); e.currentTarget.value = ""; }} />
             <div className="queue-summary"><span>{files.length} ITEM{files.length === 1 ? "" : "S"} SELECTED</span><span>{formatBytes(files.reduce((sum, file) => sum + (file.size ?? 0), 0))} known size</span></div>
             {files.length === 0 ? <button className="empty-queue" type="button" onClick={chooseFiles}><span className="empty-queue-icon"><Upload size={22} /></span><strong>Choose files or drop them into SHIFT</strong><small>Files are read from your machine only when you create the archive.</small><span className="empty-queue-cta">Browse local files <ChevronRight size={15} /></span></button> :
