@@ -110,7 +110,8 @@ function App() {
         else if (event.payload.type === "leave") setIsDragging(false);
         else if (event.payload.type === "drop") {
           setIsDragging(false);
-          setFiles((current) => uniqueFiles(current, event.payload.paths.map((path) => ({ id: makeId(), name: leafName(path), path }))));
+          const droppedPaths = event.payload.paths;
+          setFiles((current) => uniqueFiles(current, droppedPaths.map((path) => ({ id: makeId(), name: leafName(path), path }))));
           setPage("compress");
         }
       }),
@@ -160,7 +161,8 @@ function App() {
     setToast(null);
     try {
       const result = await invoke<ZipResult>("create_zip", { inputs: files.map((file) => file.path), archiveName: archiveName.trim() || null });
-      setJobs((current) => [{ ...result, id: makeId(), completedAt: new Date().toISOString(), status: "done" }, ...current].slice(0, 30));
+      const job: JobRecord = { ...result, id: makeId(), completedAt: new Date().toISOString(), status: "done" };
+      setJobs((current) => [job, ...current].slice(0, 30));
       setFiles([]);
       setArchiveName("");
       setToast({ message: "Archive verified and saved.", kind: "success" });

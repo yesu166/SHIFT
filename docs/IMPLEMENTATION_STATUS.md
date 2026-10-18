@@ -19,9 +19,9 @@ Last reviewed: 2026-10-18
 | In-app quick-action wheel | IMPLEMENTED | Shows only registry actions marked available; Escape closes it. |
 | Native file picker and app-window drop | IMPLEMENTED | Uses Tauri dialog API and the typed webview drag/drop events; Windows runtime verification remains pending. |
 | ZIP creation engine | IMPLEMENTED | Rust source streams files using DEFLATE, writes a temporary output, validates entries, measures size, and avoids replacing existing archives. |
-| ZIP automated tests | IN_PROGRESS | Tests are in source; results need a passing CI run. |
+| ZIP automated tests | IN_PROGRESS | Tests are in source; CI results must pass before calling them verified. |
 | ZIP output validated with Windows Explorer | BLOCKED | Requires independent Windows-compatible extraction verification. |
-| Frontend typecheck/lint/test/build | IN_PROGRESS | First CI run identified and helped diagnose a parse error; rerun after correction. |
+| Frontend typecheck/lint/test/build | IN_PROGRESS | The first CI run exposed a frontend parse error and Rust format differences. The follow-up exposed additional TypeScript typing issues; these are being corrected with each CI cycle. |
 | PDF operations | PLANNED | Evaluate qpdf and a PDF-writing engine, then add real-output tests. |
 | Office-to-PDF conversion | PLANNED | Detect optional LibreOffice and test document layout before enabling conversion. |
 | Cross-app Shift-drag | BLOCKED | Must prove a documented, reliable Windows method for obtaining the active drag payload. |

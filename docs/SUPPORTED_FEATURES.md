@@ -1,21 +1,18 @@
-# Supported features matrix
+# Supported features
 
-All user-facing operations remain unavailable until implemented and tested with real outputs. Planned ideas must not be presented as working capabilities.
+The typed registry in src/lib/operations.ts is the single source of truth. Only ZIP creation is currently marked available.
 
-| Feature | Inputs | Output | Status | Required evidence before enabling |
+| Feature | Inputs | Output | Status | Verification gate |
 |---|---|---|---|---|
-| Compress Files to ZIP | Files/folders | Standard compressed ZIP | PLANNED | DEFLATE, Unicode/nested paths, output integrity, Windows-compatible extraction, actual metrics. |
-| PDF merge | PDF files | PDF | PLANNED | Reopen output; check page count/order; preserve sources. |
-| PDF split/extract | PDF + page selection | PDF file(s) | PLANNED | Validate ranges, output page counts, and content order. |
-| PDF rotate/reorder/remove | PDF + page operations | PDF | PLANNED | Reopen output and verify page count/orientation/order. |
-| Optimize PDF | PDF | Optimized PDF | PLANNED | Structural validation and measured before/after bytes; output may grow. |
-| DOCX to PDF | DOCX | PDF | PLANNED | Verified engine and representative rendering/fidelity tests. |
-| XLSX to PDF | XLSX | PDF | PLANNED | Verified engine; test print areas, sheets, formulas, fonts and layout. |
-| PPTX to PDF | PPTX | PDF | PLANNED | Verified engine; test slides, images, fonts and layouts. |
-| PDF password protection | PDF + user-supplied password | Encrypted PDF | PLANNED | Supported engine and encryption/output reopening checks; never log password. |
-| PDF password removal | Encrypted PDF + supplied password | PDF | PLANNED | Supported engine, correct password validation and source preservation. |
-| Page numbers/watermarks | PDF + options | PDF | PLANNED | Actual PDF-writing implementation; renderer alone is insufficient. |
-| ZIP extraction | ZIP | Files/folders | PLANNED | Zip Slip/symlink protections, bounds, collision handling, safe limits and independent tests. |
-| Cross-app Shift-drag | OS interaction | Action menu | BLOCKED | Windows proof of concept that obtains the actual dragged payload safely and reliably. |
+| Compress files to ZIP | Files and directories | DEFLATE ZIP | IMPLEMENTED | CI engine tests and independent Windows extraction must pass before release. |
+| Optimize PDF | PDF | Optimized PDF | PLANNED | Real optimization engine, output parsing, actual byte comparison and source preservation. |
+| Merge PDFs | PDFs in selected order | PDF | PLANNED | Reopen output and verify page count/order. |
+| Split or extract pages | PDF and page selection | PDF file(s) | PLANNED | Validate ranges and output page structure. |
+| Rotate, reorder, remove pages | PDF and page options | PDF | PLANNED | Verify output page structure/orientation. |
+| DOCX/XLSX/PPTX to PDF | Office document | PDF | PLANNED | Optional engine detection and representative layout/fidelity tests. |
+| Page numbers/watermarks | PDF and settings | PDF | PLANNED | Real PDF writer and fidelity tests. |
+| PDF password protection/removal | PDF and the required password | Encrypted/decrypted PDF | PLANNED | Secure password flow plus successful output validation. |
+| ZIP extraction | ZIP | Files/folders | NOT_SUPPORTED | Implement path traversal, symlink, expansion size, count/depth and overwrite protections first. |
+| Cross-application Shift-drag | OS-originating drag | Action wheel | BLOCKED | Windows proof of concept using documented APIs to obtain active drag payload reliably. |
 
-No feature is currently marked TESTED or VERIFIED_ON_WINDOWS.
+The browser preview cannot pass a browser File as a native path. ZIP processing requires the Tauri desktop shell and native paths.
