@@ -22,6 +22,11 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
+      - name: Inspect dependency advisories
+        shell: bash
+        run: |
+          npm audit --json > npm-audit.json || true
+          node -e "const a=require('./npm-audit.json'); console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities, packages:Object.entries(a.vulnerabilities||{}).map(([name,v])=>({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable}))}, null, 2))"
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
@@ -30,6 +35,14 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+      - name: Upload dependency resolution and audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-resolution
+          path: |
+            package-lock.json
+            npm-audit.json
 
   rust:
     name: Rust engine checks
@@ -56,3 +69,9 @@ jobs:
       - name: Rust lint
         working-directory: src-tauri
         run: cargo clippy --all-targets -- -D warnings
+      - name: Upload Cargo lockfile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-resolution
+          path: src-tauri/Cargo.lock
