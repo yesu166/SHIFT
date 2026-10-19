@@ -96,28 +96,31 @@ fn position_wheel_near_cursor(window: &WebviewWindow) -> Result<(), String> {
             .map_err(|error| format!("Could not center the SHIFT wheel: {error}"));
     };
 
-    let scale = window.scale_factor().unwrap_or(1.0);
+    let monitors = window.available_monitors().unwrap_or_default();
+    let selected_monitor = monitors.into_iter().find(|monitor| {
+        let position = monitor.position();
+        let size = monitor.size();
+        cursor_x >= position.x
+            && cursor_y >= position.y
+            && cursor_x < position.x + size.width as i32
+            && cursor_y < position.y + size.height as i32
+    });
+    let scale = selected_monitor
+        .as_ref()
+        .map(|monitor| monitor.scale_factor())
+        .unwrap_or_else(|| window.scale_factor().unwrap_or(1.0));
     let width = (WHEEL_WINDOW_SIZE * scale).round() as i32;
     let height = width;
     let mut left = cursor_x - width / 2;
     let mut top = cursor_y - height / 2;
 
-    if let Ok(monitors) = window.available_monitors() {
-        if let Some(monitor) = monitors.into_iter().find(|monitor| {
-            let position = monitor.position();
-            let size = monitor.size();
-            cursor_x >= position.x
-                && cursor_y >= position.y
-                && cursor_x < position.x + size.width as i32
-                && cursor_y < position.y + size.height as i32
-        }) {
-            let position = monitor.position();
-            let size = monitor.size();
-            let max_left = (position.x + size.width as i32 - width).max(position.x);
-            let max_top = (position.y + size.height as i32 - height).max(position.y);
-            left = left.clamp(position.x, max_left);
-            top = top.clamp(position.y, max_top);
-        }
+    if let Some(monitor) = selected_monitor {
+        let position = monitor.position();
+        let size = monitor.size();
+        let max_left = (position.x + size.width as i32 - width).max(position.x);
+        let max_top = (position.y + size.height as i32 - height).max(position.y);
+        left = left.clamp(position.x, max_left);
+        top = top.clamp(position.y, max_top);
     }
 
     window
