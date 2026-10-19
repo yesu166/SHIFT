@@ -1,4 +1,4 @@
-use image::{codecs::jpeg::JpegEncoder, DynamicImage, ImageFormat, ImageReader};
+use image::{codecs::jpeg::JpegEncoder, imageops, DynamicImage, ImageBuffer, ImageFormat, ImageReader, Rgb};
 use serde::Serialize;
 use std::{
     fs,
@@ -16,6 +16,13 @@ pub struct ImageOperationResult {
     pub input_bytes: u64,
     pub output_bytes: u64,
     pub bytes_saved: i64,
+}
+
+fn jpeg_compatible(image: &DynamicImage) -> DynamicImage {
+    let rgba = image.to_rgba8();
+    let mut background = ImageBuffer::from_pixel(rgba.width(), rgba.height(), Rgb([255, 255, 255]));
+    imageops::overlay(&mut background, &rgba, 0, 0);
+    DynamicImage::ImageRgb8(background)
 }
 
 fn target_format(extension: &str) -> Result<ImageFormat, String> {
@@ -185,15 +192,19 @@ pub fn convert_images(
                 path.display()
             )
         })?;
-        decoded
-            .write_to(&mut temporary, format)
-            .map_err(|error| {
-                format!(
-                    "Could not convert {} to {}: {error}",
-                    path.display(),
-                    target_ext
-                )
-            })?;
+        let encode_result = if format == ImageFormat::Jpeg {
+            // JPEG has no alpha channel; composite transparent images onto white.
+            jpeg_compatible(&decoded).write_to(&mut temporary, format)
+        } else {
+            decoded.write_to(&mut temporary, format)
+        };
+        encode_result.map_err(|error| {
+            format!(
+                "Could not convert {} to {}: {error}",
+                path.display(),
+                target_ext
+            )
+        })?;
         results.push(finish_output(&path, &target_ext, "converted", temporary)?);
     }
     Ok(results)
@@ -259,6 +270,25 @@ mod tests {
         assert!(source.exists());
         assert!(Path::new(&results[0].output_path).exists());
         assert!(results[0].output_path.ends_with(".webp"));
+    }
+
+    #[test]
+    fn converts_transparent_png_to_jpeg() {
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("alpha.png");
+        ImageBuffer::from_pixel(8, 8, image::Rgba([255, 0, 0, 50]))
+            .save(&source)
+            .unwrap();
+        let result = convert_images(&[source.to_string_lossy().into_owned()], "jpg").unwrap();
+        assert!(source.exists());
+        let opened = ImageReader::open(&result[0].output_path)
+            .unwrap()
+            .with_guessed_format()
+            .unwrap()
+            .decode()
+            .unwrap();
+        assert!(!matches!(opened, DynamicImage::ImageRgba8(_)));
+        assert!(result[0].output_path.ends_with(".jpg"));
     }
 
     #[test]
