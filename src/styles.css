@@ -30,3 +30,89 @@
 
 .card-tools{display:flex;align-items:center;gap:6px;flex:0 0 auto}
 .drop-actions{flex-wrap:wrap}
+
+
+/* The main window can close to tray; the wheel lives in a separate transparent topmost window. */
+:root[data-wheel-overlay=true], :root[data-wheel-overlay=true] body, :root[data-wheel-overlay=true] #root {
+  width: 100%; height: 100%; min-width: 0; min-height: 0; margin: 0;
+  background: transparent; overflow: hidden;
+}
+:root[data-wheel-overlay=true] body { background: transparent; }
+.shift-wheel-root {
+  width: 100vw; height: 100vh; display: grid; place-items: center;
+  padding: 12px; overflow: hidden; background: transparent; color: var(--ink);
+}
+.shift-wheel-shell {
+  position: relative; width: min(100%, 520px); aspect-ratio: 1; border-radius: 50%;
+  background: color-mix(in srgb, var(--panel) 93%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line2) 82%, transparent);
+  box-shadow: 0 20px 70px #1c130d36, inset 0 0 0 10px color-mix(in srgb, var(--panel) 65%, transparent);
+  backdrop-filter: blur(18px); animation: shift-wheel-in .16s ease both;
+}
+.shift-wheel-shell.is-dragging { border-color: color-mix(in srgb, var(--orange) 65%, var(--line)); }
+.shift-wheel-shell.is-over-zip { box-shadow: 0 0 0 5px color-mix(in srgb, var(--orange) 27%, transparent), 0 24px 70px #1c130d3b; }
+.shift-wheel-orbit { position: absolute; inset: 11%; border: 1px dashed var(--line2); border-radius: 50%; pointer-events: none; }
+.shift-wheel-orbit::after { content: ""; position: absolute; inset: 12%; border: 1px solid var(--line); border-radius: 50%; }
+.shift-wheel-center {
+  position: absolute; left: 50%; top: 54%; transform: translate(-50%, -50%); width: 48%; height: 48%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 18px;
+  border: 1px solid var(--line); border-radius: 50%; background: var(--panel); box-shadow: 0 14px 36px #21160d16;
+  text-align: center; pointer-events: none;
+}
+.shift-wheel-mark { width: 35px; height: 35px; position: relative; display: grid; place-items: center; border-radius: 11px; background: var(--orange); transform: rotate(-3deg); }
+.shift-wheel-mark::before { content: ""; width: 16px; height: 16px; border: 2px solid #fff7f0; border-radius: 5px; }
+.shift-wheel-mark span { position: absolute; right: 7px; bottom: 7px; width: 7px; height: 7px; background: #fff7f0; border-radius: 2px; }
+.shift-wheel-center strong { display: flex; align-items: center; justify-content: center; gap: 7px; max-width: 100%; font-size: clamp(12px, 2.4vw, 17px); letter-spacing: -.35px; line-height: 1.25; overflow-wrap: anywhere; }
+.shift-wheel-center small { max-width: 170px; color: var(--muted); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.shift-wheel-action {
+  position: absolute; z-index: 2; left: 50%; top: 13%; transform: translate(-50%, -50%);
+  width: 36%; min-width: 142px; min-height: 108px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 13px 10px; border: 1px solid var(--orange2); border-radius: 20px; color: var(--ink);
+  background: var(--panel); box-shadow: 0 10px 25px #d45c2426; cursor: copy; transition: transform .13s, box-shadow .13s, background .13s;
+}
+.shift-wheel-action:hover, .shift-wheel-action.drop-highlight { transform: translate(-50%, -50%) scale(1.055); background: var(--tint); box-shadow: 0 0 0 4px color-mix(in srgb, var(--orange) 22%, transparent), 0 16px 34px #d45c2433; }
+.shift-wheel-action:disabled { opacity: .65; cursor: progress; }
+.shift-wheel-action-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; background: var(--tint); color: var(--orange2); }
+.shift-wheel-action strong { font-size: 12px; line-height: 1.2; }
+.shift-wheel-action small { color: var(--orange2); font-size: 8px; font-weight: 850; letter-spacing: 1px; }
+.shift-wheel-close {
+  position: absolute; z-index: 4; right: 12%; top: 12%; width: 31px; height: 31px;
+  display: grid; place-items: center; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); color: var(--muted); cursor: pointer;
+}
+.shift-wheel-close:hover { border-color: var(--orange); color: var(--orange2); }
+.shift-wheel-foot {
+  position: absolute; left: 0; right: 0; bottom: 8%; display: flex; align-items: center; justify-content: center; gap: 7px;
+  color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: 1px;
+}
+.shift-wheel-notice, .shift-wheel-result {
+  position: absolute; z-index: 5; left: 50%; bottom: -5px; transform: translate(-50%, 100%); width: min(440px, 90vw);
+  display: flex; align-items: center; gap: 9px; padding: 12px 13px; border: 1px solid var(--line2); border-radius: 13px;
+  background: var(--panel); box-shadow: 0 12px 34px #21160d25; color: var(--ink2); font-size: 11px; line-height: 1.45;
+}
+.shift-wheel-notice > svg { color: var(--orange2); flex: 0 0 auto; }
+.shift-wheel-notice span { flex: 1; }
+.shift-wheel-notice button { border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.shift-wheel-result { flex-direction: column; align-items: flex-start; gap: 6px; padding: 15px; }
+.shift-wheel-result strong { display: flex; align-items: center; gap: 7px; color: var(--green); }
+.shift-wheel-result span { max-width: 100%; overflow-wrap: anywhere; color: var(--ink); font-weight: 700; }
+.shift-wheel-result small { color: var(--muted); }
+.shift-wheel-result button { display: flex; align-items: center; gap: 7px; margin-top: 3px; border: 0; padding: 8px 10px; border-radius: 8px; background: var(--soft); color: var(--ink); font-size: 10px; font-weight: 700; cursor: pointer; }
+.shift-wheel-spinner { width: 25px; height: 25px; border: 3px solid var(--line2); border-top-color: var(--orange); border-radius: 50%; animation: shift-wheel-spin .65s linear infinite; }
+@keyframes shift-wheel-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes shift-wheel-spin { to { transform: rotate(360deg); } }
+:root[data-reduced-motion=true] .shift-wheel-shell, :root[data-reduced-motion=true] .shift-wheel-spinner { animation: none; }
+.shortcut-hint { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .8px; }
+.wheel-instructions-card {
+  display: flex; align-items: center; gap: 15px; margin: 0 0 24px; padding: 18px 20px;
+  border: 1px solid var(--line); border-radius: 13px; background: var(--panel);
+}
+.wheel-instructions-icon { width: 42px; height: 42px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 12px; background: var(--tint); color: var(--orange2); }
+.wheel-instructions-copy { flex: 1; min-width: 0; }
+.wheel-instructions-copy .eyebrow { margin-bottom: 6px; }
+.wheel-instructions-copy h2 { margin: 0 0 6px; font-size: 14px; }
+.wheel-instructions-copy p { margin: 0; color: var(--ink2); font-size: 10px; line-height: 1.65; }
+.wheel-instructions-copy strong { color: var(--orange2); }
+.shortcut-label { display: block; margin: 20px 0 7px; color: var(--muted); font-size: 10px; font-weight: 700; }
+.shortcut-select { width: 100%; min-height: 39px; border: 1px solid var(--line2); border-radius: 9px; padding: 0 11px; background: var(--raised); color: var(--ink); font-size: 11px; }
+@media (max-width: 900px) { .wheel-instructions-card { align-items: flex-start; flex-wrap: wrap; } .wheel-instructions-copy { flex-basis: calc(100% - 60px); } .wheel-instructions-card > .button { margin-left: 57px; } }

@@ -2,16 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  Activity, Archive, ArrowLeftRight, ArrowRight, ArrowUpRight, Check, CheckCircle2,
+  Activity, Archive, ArrowRight, ArrowUpRight, Check, CheckCircle2,
   ChevronRight, Clock3, Command, FileArchive, FileClock, FileText, FolderOpen, HardDrive,
-  Home, Layers3, LockKeyhole, Moon, MoreHorizontal, Plus, Settings, ShieldCheck, Sparkles,
+  Home, LockKeyhole, Moon, MoreHorizontal, Plus, Settings, ShieldCheck, Sparkles,
   Sun, Trash2, Upload, X, Zap, type LucideIcon,
 } from "lucide-react";
 import { formatBytes, formatSignedBytes } from "./lib/format";
-import { getAvailableOperations, type OperationDefinition } from "./lib/operations";
-import { getRadialPosition } from "./lib/radial";
+import { getAvailableOperations } from "./lib/operations";
 
-type PageId = "home" | "convert" | "organize" | "compress" | "edit" | "protect" | "history" | "settings";
+type PageId = "home" | "compress" | "history" | "settings";
 type ThemeMode = "light" | "dark";
 interface QueuedFile { id: string; name: string; path?: string; size?: number }
 interface ZipResult { outputPath: string; inputBytes: number; archiveBytes: number; bytesSaved: number; filesArchived: number }
@@ -21,37 +20,10 @@ interface NavItem { id: PageId; label: string; icon: LucideIcon }
 
 const NAV_ITEMS: NavItem[] = [
   { id: "home", label: "Home", icon: Home },
-  { id: "convert", label: "Convert", icon: ArrowLeftRight },
-  { id: "organize", label: "Organize", icon: Layers3 },
   { id: "compress", label: "Compress", icon: Archive },
-  { id: "edit", label: "Edit PDF", icon: FileText },
-  { id: "protect", label: "Protect", icon: ShieldCheck },
-  { id: "history", label: "Batch & History", icon: FileClock },
+  { id: "history", label: "History", icon: FileClock },
   { id: "settings", label: "Settings", icon: Settings },
 ];
-
-const PLANNED: Record<string, { eyebrow: string; title: string; description: string; engine: string }> = {
-  convert: {
-    eyebrow: "CONVERSION WORKSPACE", title: "Convert without guesswork.",
-    description: "SHIFT only offers a conversion when a real engine can produce and validate the requested output.",
-    engine: "Office-to-PDF engine integration is not connected yet.",
-  },
-  organize: {
-    eyebrow: "PDF WORKSPACE", title: "Put pages in the right order.",
-    description: "Merge, split, rotate, extract, reorder and remove PDF pages without touching the original file.",
-    engine: "PDF structural operations are not enabled in this build.",
-  },
-  edit: {
-    eyebrow: "PDF WORKSPACE", title: "Make the small changes count.",
-    description: "Page numbers, watermarks and metadata edits need a real PDF-writing implementation.",
-    engine: "PDF writing and preview are not connected yet.",
-  },
-  protect: {
-    eyebrow: "PRIVACY WORKSPACE", title: "Keep documents yours.",
-    description: "Password tools appear only when encryption and output validation are implemented safely.",
-    engine: "PDF encryption integration is not connected yet.",
-  },
-};
 
 function makeId(): string {
   return globalThis.crypto?.randomUUID?.() ?? String(Date.now()) + "-" + Math.random().toString(16).slice(2);
@@ -76,18 +48,11 @@ function App() {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [toast, setToast] = useState<{ message: string; kind: "success" | "error" | "info" } | null>(null);
-  const [wheelOpen, setWheelOpen] = useState(false);
+  const [activationKey, setActivationKey] = useState(() => localStorage.getItem("shift.activationKey") || "F8");
   const [theme, setTheme] = useState<ThemeMode>(() => localStorage.getItem("shift.theme") === "dark" ? "dark" : "light");
   const [reducedMotion, setReducedMotion] = useState(() => localStorage.getItem("shift.reducedMotion") === "true");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const wheelRef = useRef<HTMLDivElement>(null);
-  const wheelTriggerRef = useRef<HTMLButtonElement>(null);
   const isDesktop = isTauri();
-  const closeWheel = useCallback(() => {
-    setWheelOpen(false);
-    wheelTriggerRef.current?.focus();
-  }, []);
-  const emptyRadialPosition = getRadialPosition(0, 1);
 
   const availableOperations = useMemo(() => getAvailableOperations(files.map((file) => file.name)), [files]);
   const canCreateZip = isDesktop && files.length > 0 && files.every((file) => Boolean(file.path)) && !busy;
@@ -110,6 +75,18 @@ function App() {
   }, [isDesktop]);
   useEffect(() => {
     if (!isDesktop) return;
+    let active = true;
+    void invoke<string>("get_wheel_shortcut")
+      .then((key) => {
+        if (!active) return;
+        setActivationKey(key);
+        localStorage.setItem("shift.activationKey", key);
+      })
+      .catch((error: unknown) => setToast({ message: "Unable to read wheel shortcut: " + String(error), kind: "error" }));
+    return () => { active = false; };
+  }, [isDesktop]);
+  useEffect(() => {
+    if (!isDesktop) return;
     let unlisten: (() => void) | undefined;
     let cancelled = false;
     void import("@tauri-apps/api/webview").then(({ getCurrentWebview }) =>
@@ -127,33 +104,7 @@ function App() {
       .catch((error: unknown) => setToast({ message: "File drop support could not start: " + String(error), kind: "error" }));
     return () => { cancelled = true; unlisten?.(); };
   }, [isDesktop]);
-  useEffect(() => {
-    if (!wheelOpen) return;
-    const handleKeys = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closeWheel();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const focusable = Array.from(
-        wheelRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])') ?? [],
-      );
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener("keydown", handleKeys);
-    wheelRef.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus();
-    return () => window.removeEventListener("keydown", handleKeys);
-  }, [wheelOpen, closeWheel]);
+
   useEffect(() => {
     if (!toast) return;
     const timeout = window.setTimeout(() => setToast(null), 5200);
@@ -231,19 +182,24 @@ function App() {
     catch (error) { setToast({ message: "Could not open the output folder: " + String(error), kind: "error" }); }
   }, [isDesktop]);
 
-  const selectOperation = useCallback((operation: OperationDefinition) => {
-    closeWheel();
-    if (operation.id === "create-zip") {
-      setPage("compress");
-      if (files.length === 0) {
-        void chooseFiles();
-      } else {
-        setToast({ message: "Ready to create your archive. Review the name and destination, then choose Create ZIP archive.", kind: "info" });
-      }
-    } else {
-      setToast({ message: operation.unavailableReason ?? "This operation is not enabled.", kind: "info" });
+
+
+  const updateActivationKey = useCallback(async (key: string) => {
+    if (!isDesktop) {
+      setActivationKey(key);
+      localStorage.setItem("shift.activationKey", key);
+      setToast({ message: "Install the Windows desktop build to activate the global wheel shortcut.", kind: "info" });
+      return;
     }
-  }, [chooseFiles, closeWheel, files.length]);
+    try {
+      const savedKey = await invoke<string>("set_wheel_shortcut", { key });
+      setActivationKey(savedKey);
+      localStorage.setItem("shift.activationKey", savedKey);
+      setToast({ message: "Wheel shortcut set to " + savedKey + ". Hold it while dragging a file.", kind: "success" });
+    } catch (error) {
+      setToast({ message: "Could not change the wheel shortcut: " + String(error), kind: "error" });
+    }
+  }, [isDesktop]);
 
   const currentTitle = NAV_ITEMS.find((item) => item.id === page)?.label ?? "Home";
 
@@ -254,7 +210,7 @@ function App() {
       </button>
       <div className="workspace-label">WORKSPACE <span>01</span></div>
       <nav className="primary-nav" aria-label="Main navigation">
-        {NAV_ITEMS.slice(0, 6).map((item) => {
+        {NAV_ITEMS.slice(0, 2).map((item) => {
           const Icon = item.icon;
           return <button key={item.id} className={"nav-item" + (page === item.id ? " active" : "")} onClick={() => setPage(item.id)} type="button">
             <Icon size={17} strokeWidth={1.8} /><span>{item.label}</span>{item.id === "compress" && <i className="nav-dot" aria-label="Available" />}
@@ -271,10 +227,10 @@ function App() {
     </aside>
 
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumbs"><span>SHIFT</span><ChevronRight size={14} /><strong>{currentTitle}</strong></div><div className="topbar-actions"><div className={"local-pill" + (isDesktop ? " connected" : "")}><i />{isDesktop ? "LOCAL MODE" : "PREVIEW MODE"}</div><button className="icon-button" onClick={() => setWheelOpen((v) => !v)} type="button" aria-label="Open quick action wheel" aria-expanded={wheelOpen}><Command size={18} /></button></div></header>
+      <header className="topbar"><div className="breadcrumbs"><span>SHIFT</span><ChevronRight size={14} /><strong>{currentTitle}</strong></div><div className="topbar-actions"><div className={"local-pill" + (isDesktop ? " connected" : "")}><i />{isDesktop ? "LOCAL MODE" : "PREVIEW MODE"}</div><div className="shortcut-hint">WHEEL · {activationKey}</div></div></header>
 
       {page === "home" && <div className="page page-home">
-        <div className="page-intro"><div><div className="eyebrow"><Sparkles size={14} /> A LITTLE LESS FILE CHAOS</div><h1>Your files.<br /><span>Sorted.</span></h1><p className="intro-copy">The everyday document toolkit that gets out of your way. Simple actions, clean outputs, no cloud detours.</p></div>
+        <div className="page-intro"><div><div className="eyebrow"><Sparkles size={14} /> A LITTLE LESS FILE CHAOS</div><h1>Your files.<br /><span>Sorted.</span></h1><p className="intro-copy">Hold <strong>{activationKey}</strong> while dragging a file from any app. Drop it on the wheel to compress it locally.</p></div>
           <div className="intro-orbit" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit-center"><span className="brand-mark"><span /></span></div><span className="orbit-file orbit-a"><FileText size={19} /></span><span className="orbit-file orbit-b"><FileArchive size={19} /></span><span className="orbit-file orbit-c"><CheckCircle2 size={19} /></span></div>
         </div>
         <div className={"drop-card" + (isDragging ? " drag-active" : "")} onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }} onDragOver={(e) => e.preventDefault()} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragging(false); }} onDrop={(e) => { e.preventDefault(); setIsDragging(false); addBrowserFiles(e.dataTransfer.files); }}>
@@ -284,12 +240,15 @@ function App() {
             <div className="drop-format-row"><span>PDF</span><span>DOCX</span><span>XLSX</span><span>PPTX</span><span>+ ANY FILE</span></div>
           </div>
         </div>
-        <div className="section-heading"><div><span className="eyebrow">YOUR WORKSPACE</span><h2>Quick actions</h2></div><button className="text-button" type="button" onClick={() => setPage("compress")}>View all actions <ArrowRight size={15} /></button></div>
-        <div className="action-grid">
-          <button className="action-card action-card-featured" type="button" onClick={() => setPage("compress")}><span className="action-symbol symbol-orange"><Archive size={20} /></span><span className="action-copy"><strong>Compress files to ZIP</strong><small>Bundle files and folders into one archive.</small><em><i /> READY TO USE</em></span><ArrowUpRight className="action-arrow" size={18} /></button>
-          <div className="action-card action-card-muted" aria-disabled="true"><span className="action-symbol symbol-neutral"><Activity size={20} /></span><span className="action-copy"><strong>Optimize a PDF</strong><small>Structural optimization with measured savings.</small><em>ENGINE NOT CONNECTED</em></span><span className="coming-soon">SOON</span></div>
-          <div className="action-card action-card-muted" aria-disabled="true"><span className="action-symbol symbol-neutral"><Layers3 size={20} /></span><span className="action-copy"><strong>Merge PDFs</strong><small>Bring pages together in the right order.</small><em>NOT ENABLED YET</em></span><span className="coming-soon">SOON</span></div>
-        </div>
+        <section className="wheel-instructions-card">
+          <div className="wheel-instructions-icon"><Command size={20} /></div>
+          <div className="wheel-instructions-copy">
+            <span className="eyebrow">GLOBAL QUICK ACTION</span>
+            <h2>Use SHIFT over any app</h2>
+            <p>Start dragging a file, hold <strong>{activationKey}</strong>, then drop it on <strong>Compress to ZIP</strong>. SHIFT stays available in the system tray when this window is closed.</p>
+          </div>
+          <button className="button button-secondary" type="button" onClick={() => setPage("settings")}>Change key</button>
+        </section>
         <div className="bottom-grid">
           <div className="recent-panel"><div className="section-heading compact"><div><span className="eyebrow">ACTIVITY</span><h2>Recent work</h2></div><b className="panel-count">{jobs.length.toString().padStart(2, "0")}</b></div>
             {jobs.length === 0 ? <div className="empty-recent"><span className="empty-icon"><Clock3 size={18} /></span><div><strong>Nothing here. Yet.</strong><p>Your completed tasks will show up after the first run.</p></div></div> : <div className="recent-work-row"><span className="recent-work-icon"><Archive size={17} /></span><div><strong>{jobs.length} completed archive{jobs.length === 1 ? "" : "s"}</strong><p>See Batch &amp; History for output details.</p></div><CheckCircle2 className="success-icon" size={17} /></div>}
@@ -328,6 +287,14 @@ function App() {
 
       {page === "settings" && <div className="page"><div className="page-title-row"><div><div className="eyebrow"><Settings size={14} /> PREFERENCES</div><h1>Make SHIFT yours.</h1><p>Settings that actually change behavior. No decorative switches.</p></div></div>
         <div className="settings-layout">
+          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Command size={18} /></span><div><h2>Wheel shortcut</h2><p>Choose the key that opens the floating wheel.</p></div></div>
+            <label className="shortcut-label" htmlFor="wheel-shortcut-select">Activation key</label>
+            <select id="wheel-shortcut-select" className="shortcut-select" value={activationKey} onChange={(event) => { void updateActivationKey(event.currentTarget.value); }}>
+              {["F6", "F7", "F8", "F9", "F10", "F11", "F12"].map((key) => <option key={key} value={key}>{key}{key === "F8" ? " · default" : ""}</option>)}
+            </select>
+            <p className="settings-footnote">Start dragging in File Explorer or another app, hold {activationKey}, then drop onto the orange ZIP action. Press Escape to close the wheel.</p>
+            <div className="privacy-list"><div><CheckCircle2 size={16} /><span>Works over other applications</span></div><div><CheckCircle2 size={16} /><span>Remains active in the system tray</span></div></div>
+          </section>
           <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Sun size={18} /></span><div><h2>Appearance</h2><p>Choose the workspace contrast that works for you.</p></div></div>
             <div className="theme-picker" role="group" aria-label="Color theme"><button className={"theme-choice" + (theme === "light" ? " selected" : "")} type="button" onClick={() => setTheme("light")}><span className="theme-swatch theme-light"><i /><i /><i /></span><span>Light</span>{theme === "light" && <Check size={16} />}</button><button className={"theme-choice" + (theme === "dark" ? " selected" : "")} type="button" onClick={() => setTheme("dark")}><span className="theme-swatch theme-dark"><i /><i /><i /></span><span>Dark</span>{theme === "dark" && <Check size={16} />}</button></div>
             <div className="settings-divider" /><div className="settings-row"><span className="settings-icon">{reducedMotion ? <Moon size={18} /> : <Zap size={18} />}</span><span className="settings-row-copy"><strong>Reduce motion</strong><small>Limit interface transitions and movement.</small></span><button className={"toggle" + (reducedMotion ? " on" : "")} type="button" role="switch" aria-checked={reducedMotion} onClick={() => setReducedMotion(!reducedMotion)} aria-label="Reduce motion"><span /></button></div>
@@ -337,46 +304,8 @@ function App() {
         </div>
       </div>}
 
-      {!(["home", "compress", "history", "settings"] as PageId[]).includes(page) && <div className="page planned-page"><div className="eyebrow"><Sparkles size={14} /> {PLANNED[page].eyebrow}</div><div className="planned-illustration"><div className="planned-ring ring-a" /><div className="planned-ring ring-b" /><div className="planned-center"><Layers3 size={28} /></div><span className="planned-orbit orbit-a"><FileText size={18} /></span><span className="planned-orbit orbit-b"><ShieldCheck size={18} /></span></div><h1>{PLANNED[page].title}</h1><p className="planned-description">{PLANNED[page].description}</p><div className="planned-status"><i /><div><strong>Not enabled in this build</strong><small>{PLANNED[page].engine}</small></div></div><p className="planned-footnote">No fake conversions. This operation will appear here after its engine and output tests pass.</p><button className="button button-primary" onClick={() => setPage("compress")} type="button">Use the ZIP tool instead <ArrowRight size={16} /></button></div>}
-    </main>
 
-    <button ref={wheelTriggerRef} className="floating-wheel-trigger" type="button" aria-label="Quick action wheel" onClick={() => setWheelOpen((v) => !v)} aria-expanded={wheelOpen}><Plus size={22} /></button>
-    {wheelOpen && <>
-      <button className="wheel-scrim" type="button" aria-label="Close quick action wheel" onClick={closeWheel} />
-      <div ref={wheelRef} className="action-wheel" role="dialog" aria-modal="true" aria-labelledby="wheel-title">
-        <div className="wheel-orbit" aria-hidden="true" />
-        <div className="wheel-center" id="wheel-title">
-          <span className="brand-mark"><span /></span>
-          <strong>{files.length ? "What next?" : "Start with a file."}</strong>
-          <small>{files.length ? (availableOperations.length === 1 ? "1 action ready" : availableOperations.length + " actions ready") : "Choose files to get started"}</small>
-        </div>
-        <button className="wheel-close" type="button" onClick={closeWheel} aria-label="Close quick action wheel"><X size={15} /></button>
-        {availableOperations.length > 0 ? availableOperations.map((operation, index) => {
-          const point = getRadialPosition(index, availableOperations.length);
-          return <button
-            className="wheel-action radial-action"
-            key={operation.id}
-            style={{ left: point.x + "%", top: point.y + "%" }}
-            onClick={() => selectOperation(operation)}
-            type="button"
-            aria-label={operation.title + ": " + operation.outputLabel}
-          >
-            <span className="wheel-action-icon"><Archive size={18} /></span>
-            <strong>{operation.title}</strong>
-          </button>;
-        }) : <button
-          className="wheel-action radial-action"
-          style={{ left: emptyRadialPosition.x + "%", top: emptyRadialPosition.y + "%" }}
-          onClick={() => { closeWheel(); void chooseFiles(); }}
-          type="button"
-          aria-label="Choose files"
-        >
-          <span className="wheel-action-icon"><Upload size={18} /></span>
-          <strong>Choose files</strong>
-        </button>}
-        <div className="wheel-footer"><Command size={13} /> ESC TO CLOSE <span>·</span> AVAILABLE ACTIONS</div>
-      </div>
-    </>}
+    </main>
 
     {toast && <div className={"toast toast-" + toast.kind} role="status" aria-live="polite">{toast.kind === "success" ? <CheckCircle2 size={19} /> : toast.kind === "error" ? <X size={18} /> : <Activity size={18} />}<span>{toast.message}</span><button type="button" aria-label="Dismiss message" onClick={() => setToast(null)}><X size={15} /></button></div>}
   </div>;

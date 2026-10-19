@@ -5,11 +5,11 @@ SHIFT is a Windows-first, local-first document toolbox built with React, TypeScr
 The first workflow under implementation is **Compress files to ZIP**: choose files or folders, stream them into a DEFLATE archive, reopen the archive and read all regular entries for validation, measure the actual input/output size, and save under Documents/SHIFT/Archives without replacing an existing output.
 
 ## Current status
-- Implemented in source: React workspace, shared operation registry, quick-action wheel, light/dark theme, reduced-motion setting, native file picker/drop bridge, session history and Rust ZIP engine.
+- Implemented in source: React workspace, separate transparent always-on-top wheel window, configurable global F6–F12 trigger, tray-resident background behavior, native file picker/drop bridge, session history and Rust ZIP engine.
 - Latest frontend CI passed typecheck, lint, 8/8 unit tests and production build, with `npm audit` reporting 0 vulnerabilities. The Rust unit tests and Clippy also passed on an earlier run with the same ZIP service source. See [SHIFT CI](.github/workflows/ci.yml); the latest full run must finish before release readiness can be claimed.
 - Not yet verified: packaged Windows app, installer, cross-monitor/DPI behavior or independent Windows Explorer extraction.
 - PDF actions, password protection and Office conversion remain unavailable until real engines and output tests are added.
-- System-wide Shift-drag is not claimed. A global hotkey does not provide another process's active drag payload by itself.
+- The wheel opens over other applications from a configurable global function key and uses Windows native file-drop events. Explorer drag-and-drop, DPI/multi-monitor placement, and tray lifecycle still need manual Windows GUI validation before release.
 - Not release-ready, signed, or fully audited for redistribution licensing.
 
 ## Stack
