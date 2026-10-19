@@ -125,6 +125,10 @@ fn position_wheel_near_cursor(window: &WebviewWindow) -> Result<(), String> {
         .map_err(|error| format!("Could not position the SHIFT wheel: {error}"))
 }
 
+fn escape_shortcut() -> Shortcut {
+    Shortcut::new(None, Code::Escape)
+}
+
 fn show_wheel_window(app: &AppHandle) -> Result<(), String> {
     let window = app
         .get_webview_window(WHEEL_WINDOW_LABEL)
@@ -132,7 +136,19 @@ fn show_wheel_window(app: &AppHandle) -> Result<(), String> {
     position_wheel_near_cursor(&window)?;
     window
         .show()
-        .map_err(|error| format!("Could not show the SHIFT wheel: {error}"))
+        .map_err(|error| format!("Could not show the SHIFT wheel: {error}"))?;
+    // Escape is registered only while the overlay is visible, so it doesn't affect normal work.
+    let _ = app.global_shortcut().register(escape_shortcut());
+    Ok(())
+}
+
+fn hide_wheel_window(app: &AppHandle) -> Result<(), String> {
+    app.get_webview_window(WHEEL_WINDOW_LABEL)
+        .ok_or_else(|| "The SHIFT wheel window is not available.".to_string())?
+        .hide()
+        .map_err(|error| format!("Could not hide the SHIFT wheel: {error}"))?;
+    let _ = app.global_shortcut().unregister(escape_shortcut());
+    Ok(())
 }
 
 #[tauri::command]
@@ -187,10 +203,7 @@ fn show_wheel_overlay(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 fn hide_wheel_overlay(app: AppHandle) -> Result<(), String> {
-    app.get_webview_window(WHEEL_WINDOW_LABEL)
-        .ok_or_else(|| "The SHIFT wheel window is not available.".to_string())?
-        .hide()
-        .map_err(|error| format!("Could not hide the SHIFT wheel: {error}"))
+    hide_wheel_window(&app)
 }
 
 #[tauri::command]
@@ -238,9 +251,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
-                    if event.state() == ShortcutState::Pressed {
-                        // Do not focus the overlay: stealing focus can interrupt the Explorer drag.
+                .with_handler(|app, shortcut, event| {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    if shortcut == &escape_shortcut() {
+                        let _ = hide_wheel_window(app);
+                    } else {
+                        // Do not explicitly focus the overlay: stealing focus can interrupt the Explorer drag.
                         let _ = show_wheel_window(app);
                     }
                 })
