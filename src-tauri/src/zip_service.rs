@@ -402,4 +402,3 @@ mod tests {
         assert_eq!(fs::read(destination.join("résumé 文件.txt")).unwrap(), original);
     }
 }
-}
