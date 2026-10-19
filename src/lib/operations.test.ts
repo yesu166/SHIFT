@@ -20,7 +20,7 @@ describe("SHIFT operation registry", () => {
 
   it("offers JPEG compression only for JPEG selections", () => {
     expect(getWheelOperations(["photo.jpeg"], "tools").map((op) => op.id))
-      .toEqual(["compress-jpeg", "create-zip"]);
+      .toEqual(["create-zip", "compress-jpeg"]);
     expect(getWheelOperations(["photo.png"], "tools").map((op) => op.id))
       .toEqual(["create-zip"]);
   });
