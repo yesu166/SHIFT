@@ -265,7 +265,7 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
-            let wheel_url = WebviewUrl::App("index.html?wheel=1".into());
+            let wheel_url = WebviewUrl::App("wheel.html".into());
             WebviewWindowBuilder::new(app, WHEEL_WINDOW_LABEL, wheel_url)
                 .title("SHIFT Wheel")
                 .inner_size(WHEEL_WINDOW_SIZE, WHEEL_WINDOW_SIZE)

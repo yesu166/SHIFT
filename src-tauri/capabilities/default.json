@@ -2,6 +2,6 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Minimal permissions for the SHIFT desktop window.",
-  "windows": ["main"],
+  "windows": ["main", "wheel"],
   "permissions": ["core:default", "dialog:allow-open"]
 }
