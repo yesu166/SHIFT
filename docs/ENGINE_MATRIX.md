@@ -1,39 +1,38 @@
 # Engine matrix
 
-Engine selection depends on actual capability, version, license, notices, security behavior, output validation and redistributed footprint. Only items marked implemented below are connected to the wheel.
+The wheel is driven by `src/lib/operations.ts`; the backend dispatcher is `src-tauri/src/engine_service.rs`. Menu visibility is gated by selected extensions and the required locally detected engine(s). A detectable program does not guarantee it was compiled with every encoder/codec; operation errors must remain visible.
 
-| Purpose | Engine | Input / output | Status |
+| Family | Operation | Engine | Status / constraint |
 |---|---|---|---|
-| Image conversion | Rust image crate with JPEG, PNG, WebP, BMP and TIFF features | PNG/JPG/JPEG/WebP/BMP/TIFF to a different supported image format | IMPLEMENTED IN SOURCE; CI REQUIRED |
-| JPEG compression | Rust image JPEG encoder | JPG/JPEG to a new JPG at quality 78 | IMPLEMENTED IN SOURCE; CI REQUIRED |
-| ZIP archive creation and read-back validation | Rust zip crate, pinned 8.6.0 | Files/folders to DEFLATE ZIP; read back every regular entry | IMPLEMENTED IN SOURCE |
-| Directory traversal | walkdir | Folder recursion with symlink traversal disabled | IMPLEMENTED IN SOURCE |
-| Temporary outputs | tempfile | Staging before finalization | IMPLEMENTED IN SOURCE |
-| Copy file paths | WebView clipboard API | Selected native paths to text | IMPLEMENTED IN SOURCE; MANUAL TEST REQUIRED |
-| Open output location | Rust open crate | Open a generated output's parent folder | IMPLEMENTED IN SOURCE |
-| Audio/video conversion and compression | Optional FFmpeg integration | Common media formats | PLANNED; NOT CONNECTED |
-| PDF render/create/edit | PDF engine to be selected | Image-to-PDF, merge, split, optimize, watermark, protect | PLANNED; NOT CONNECTED |
-| Office conversion | Optional LibreOffice or another reviewed engine | DOCX/XLSX/PPTX conversion | PLANNED; NOT CONNECTED |
+| Images | PNG/JPG/WebP/BMP/TIFF conversion | Rust `image` crate | Built in; supported raster codecs only |
+| Images | HEIC/AVIF/GIF conversion and selected output formats | FFmpeg | Optional; encoder/decoder support varies by build |
+| Images | SVG to PNG/PDF | Inkscape | Optional |
+| Images/PDF | Raster image to PDF | LibreOffice | Optional; raster source formats registered in the wheel |
+| Image compression | JPEG quality-78 re-encode | Rust `image` crate | Built in, lossy; may grow some files |
+| Audio/video | Convert MP3/M4A/WAV/FLAC/OGG/Opus/AIFF/WMA, MP4/MOV/MKV/WebM/AVI/WMV and GIF; video-to-MP3 | FFmpeg | Optional, codecs vary by build |
+| Audio/video | Size-focused re-encode of selected audio/video formats | FFmpeg | Optional; quality can decrease and size is not guaranteed to shrink |
+| PDF | Object-stream and Flate recompression; PDF merge | qpdf | Optional; this is structural optimization, not image OCR |
+| PDF | Pages to JPG/PNG at 300 DPI; extract TXT/Markdown | Poppler | Optional; image-only PDFs require OCR, not included |
+| Documents | Office-compatible document conversion | LibreOffice | Optional; best effort, layout may change |
+| Slides | PPT/PPTX/ODP to PDF | LibreOffice | Optional |
+| Slides | Each slide rendered to JPG/PNG | LibreOffice + Poppler | Both required |
+| Spreadsheets | XLS/XLSX/ODS/CSV/TSV conversions | LibreOffice | Optional; CSV is single-sheet data, layout may not survive |
+| Subtitles | SRT ↔ VTT; SRT/VTT to TXT | Built-in transformer | UTF-8 only; no OCR, speech recognition or translation |
+| HTML | TXT/Markdown to escaped HTML | Built-in transformer | Basic headings/lists/fenced code; does not execute source HTML |
+| Archives | ZIP | Rust `zip` crate | Built in, DEFLATE level 6, read-back validation |
+| Archives | TAR/TAR.GZ/GZIP creation; TAR/GZIP to ZIP | Rust `tar` + `flate2` | Built in; validated and bounded |
+| Archives | RAR/7Z to ZIP | 7-Zip | Optional; path/link/size/count/depth guards then validated ZIP writer |
 
-## Image engine details
+## Safety boundaries
 
-- Source formats accepted by built-in image operations: PNG, JPG/JPEG, WebP, BMP and TIFF.
-- Destination formats: PNG, JPG/JPEG, WebP, BMP and TIFF.
-- The wheel removes a target choice if any source in the current selection is already in that target format, avoiding silent no-op batch items.
-- Each conversion is written to a temporary sibling file, decoded again for validation, then saved under a new collision-safe name.
-- JPEG compression is a lossy quality-78 re-encode. It may make a small image larger; report measured size rather than promise a reduction.
-- Full metadata preservation, animation/GIF support, HEIC/AVIF/SVG input and ICC-profile fidelity are not promised by this engine.
+- External commands receive argument arrays, not an interpolated shell string.
+- Windows child processes run without creating a console window.
+- Tool output excerpts are bounded. Staged outputs must exist and be non-empty; PDF, image and Office package outputs receive format-appropriate structural checks.
+- ZIP output is reopened and every regular entry is read.
+- Archive conversion rejects absolute paths, parent-relative paths, link entries, paths deeper than 64 components, paths longer than 32,000 bytes, more than 100,000 entries, and over 2 GiB of declared expanded content. TAR/GZIP extraction rejects special/link entries, duplicate paths, non-normal path components and the same count/size/path bounds.
+- Source files are preserved; the app writes new output names and will not intentionally clobber existing outputs.
+- PDF/Office conversions can change layout. A readable header or container is structural validation, not a proof of visual fidelity.
 
-## ZIP engine details
+## Not connected yet
 
-- DEFLATE compression at level 6; stream bytes rather than loading all source files into memory.
-- Supports files, nested folders and empty directory entries.
-- Rejects selected symbolic-link roots, skips symbolic links inside selected folders, and rejects overlapping selections or duplicate archive paths.
-- Limits selection to 1,000 root paths and 100,000 entries.
-- Reopens the temporary archive and reads each regular entry before finalization.
-- Measures input/output size honestly; ZIP may be larger than the original data.
-- Independent extraction, large-file stress and Windows Explorer drag-drop tests remain release gates.
-
-## External dependency policy
-
-Do not bundle large command-line engines simply to claim format coverage. Prefer feature detection, clear availability status, safe argument passing rather than shell-string concatenation, local output validation, explicit licensing/notice review and a measurable installer-size budget. If an external engine is absent, its menu items should be unavailable with a clear explanation.
+PDF split-by-page-range, watermark, password protection/removal, redaction, OCR, audio transcription, faithful Apple Pages conversion, arbitrary-folder archive extraction and a complete animation/metadata-preserving image pipeline are not implemented. Unsupported formats must not be advertised as guaranteed round-trips.

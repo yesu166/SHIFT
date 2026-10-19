@@ -1,23 +1,34 @@
 # Supported features
 
-This page describes what is connected to the current SHIFT wheel—not a future wish list.
+The table shows operations connected to the current branch. Optional-engine items appear in the wheel only when the required tool(s) are detected in PATH.
 
-| Feature | Inputs | Output | Status / note |
+| Family | Inputs | Outputs/actions | Engine |
 |---|---|---|---|
-| Contextual drag wheel | File Explorer drag with Shift/Alt+Shift/Ctrl+Shift | Convert, tools or file actions | IMPLEMENTED IN SOURCE; needs hands-on Windows validation |
-| Convert images | PNG, JPG/JPEG, WebP, BMP, TIFF | PNG, JPG/JPEG, WebP, BMP, TIFF | BUILT-IN; target hidden if already present in the batch |
-| Compress JPEG | JPG/JPEG | Re-encoded JPG/JPEG at quality 78 | BUILT-IN; lossy; output size may increase |
-| Create ZIP | Files and folders | DEFLATE ZIP in Documents/SHIFT/Archives | BUILT-IN; archive is reopened and its regular entries read |
-| Copy paths | Dropped selection | Newline-separated local paths on clipboard | BUILT-IN; clipboard behavior needs manual Windows test |
-| Open output destination | Wheel action or result | Explorer opens the folder | BUILT-IN |
-| Tray-resident behavior | Close main window | Main window hides to tray; tray can reopen or quit | IMPLEMENTED IN SOURCE; lifecycle needs manual verification |
-| GIF animation | GIF input | Animated image conversion | NOT SUPPORTED by current built-in engine |
-| HEIC/HEIF/AVIF/SVG conversion | These source formats | Images | NOT SUPPORTED by current built-in engine |
-| Image metadata fidelity | Images with EXIF/ICC metadata | Same metadata copied verbatim | NOT GUARANTEED; output must be checked independently |
-| Audio/video conversion/compression | Media formats | Converted/compressed media | PLANNED; FFmpeg integration not connected |
-| PDF create/merge/split/optimize | PDF or supported source files | PDF files | PLANNED; no PDF engine connected |
-| DOCX/XLSX/PPTX conversion | Office files | PDF or other formats | PLANNED; optional engine not connected |
-| Password protection, watermarking, redaction | Documents and user options | Modified documents | PLANNED |
-| Start at Windows sign-in | Windows user session | Tray-resident app | NOT IMPLEMENTED |
+| Raster images | PNG, JPG/JPEG, WebP, BMP, TIFF | Convert among PNG, JPG, WebP, BMP and TIFF | Built-in Rust image engine |
+| Advanced images | HEIC, HEIF, AVIF, GIF and supported raster inputs | Convert to/from HEIC/AVIF/GIF where encoder exists | Optional FFmpeg |
+| Vector graphics | SVG | PNG or PDF | Optional Inkscape |
+| Images to PDF | PNG, JPG/JPEG, BMP, TIFF | PDF | Optional LibreOffice |
+| JPEG compression | JPG/JPEG | Quality-78 re-encode to a new file | Built in, lossy |
+| Audio | MP3, M4A, WAV, FLAC, OGG, Opus, AIFF, WMA | Conversion to supported registered audio targets | Optional FFmpeg; encoders vary |
+| Video | MP4, MOV, MKV, WebM, AVI, WMV | Convert among registered video targets or export audio to MP3 | Optional FFmpeg |
+| Media compression | Selected MP3/M4A/FLAC/OGG/Opus/WMA and video formats | Size-focused re-encode | Optional FFmpeg; quality trade-offs apply |
+| PDF tools | PDF | Optimize streams; merge two or more PDFs | Optional qpdf |
+| PDF export/extraction | PDF | Every page to JPG/PNG at 300 DPI; extract text to TXT/Markdown | Optional Poppler |
+| Documents | DOCX, ODT, RTF, TXT, Markdown, HTML, EPUB and other registered office-compatible inputs | PDF/DOCX/ODT/RTF/TXT/HTML/EPUB and selected registered office outputs | Optional LibreOffice; best effort |
+| Slides | PPT, PPTX, ODP | PDF; each slide to JPG/PNG | LibreOffice; Poppler also required for images |
+| Spreadsheets | XLS, XLSX, ODS, CSV, TSV | PDF/XLSX/ODS/CSV/TSV | Optional LibreOffice |
+| Subtitles | SRT, VTT | SRT ↔ VTT and TXT caption export | Built in, UTF-8 |
+| Text/web | TXT, MD, Markdown | Safe basic HTML export | Built in |
+| Archives | Files/folders | ZIP, TAR, TAR.GZ; single-file GZIP | Built in |
+| Archives | TAR, TGZ, TAR.GZ, GZIP | ZIP | Built in; bounded safe extraction |
+| Archives | RAR, 7Z | ZIP | Optional 7-Zip; guarded extraction |
 
-The browser preview cannot pass browser File objects as native filesystem paths. Native path operations require the Tauri desktop shell. Unsupported actions must stay out of the executable menu.
+## Important limits
+
+- The UI does not promise every source/target pairing. It offers registered actions for the current selection and detected engines.
+- FFmpeg codec/encoder support varies by build. Detecting FFmpeg does not guarantee HEIC/AVIF/WMA or every requested codec; failures surface in the wheel.
+- GIF to a still image exports one frame. Animated GIF creation from video is supported, but animation/metadata preservation across other formats is not promised.
+- PDF-to-office output is best-effort and may substantially alter layout. Scanned/image-only PDF OCR is not built in.
+- Apple Pages is not treated as a supported Windows input/output format. PDF split, watermarking, password tools, redaction and OCR are not connected yet.
+- Optional engine executables are not bundled by default. See `README.md` for official download sources and setup.
+- Native Explorer OLE drag/drop, modifier timing, focus behavior, DPI/multi-monitor placement and tray behavior still require hands-on Windows testing.

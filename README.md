@@ -1,68 +1,81 @@
 # SHIFT
 
-SHIFT is a Windows-first, local-first file wheel that brings compatible file operations to the pointer while a file is being dragged. It uses Rust, Tauri 2, React and TypeScript.
+SHIFT is a Windows-first, local-first contextual file wheel. Start dragging a file in File Explorer, tap a modifier, and choose a supported conversion/tool at the pointer. The native application is built with Rust, Tauri 2, React and TypeScript.
 
-The product direction is inspired by contextual file wheels, but SHIFT has its own implementation, copy, visual identity and feature roadmap. It is not affiliated with Tangerine.
+SHIFT borrows the low-interruption *interaction pattern* of a contextual file wheel, not Tangerine's branding or assets. SHIFT is an independent project.
 
-## The workflow
+## Gestures
 
-Start dragging a file from File Explorer, then tap a modifier while the mouse button is still held:
+- **Shift — Convert:** show compatible output formats for the current selection.
+- **Alt + Shift — Tools:** compression and archive/PDF tools.
+- **Ctrl + Shift — File actions:** copy paths or open SHIFT's output destination.
+- **Escape — Cancel.**
 
-- **Shift — Convert.** Convert images among PNG, JPEG, WebP, BMP and TIFF. The wheel hides the format the selection is already in.
-- **Alt + Shift — Tools.** Re-encode JPEG images at quality 78, or bundle files and folders into ZIP.
-- **Ctrl + Shift — File actions.** Copy selected file paths to the clipboard or open SHIFT's output destination.
-- **Escape — Cancel.** The wheel is designed not to take focus away from Explorer.
+The wheel uses the current operation registry and the local tool availability reported by the Rust engine service. Unsupported file types, disabled engines and actions that do not match the selection are not offered as executable actions.
 
-The menu is contextual: it shows only operations compatible with the current selection. A conversion writes a new sibling file next to the source. ZIP archives are written to Documents/SHIFT/Archives. Existing files are not intentionally replaced, and processing errors are surfaced instead of reporting fake success.
+## Format and engine matrix
 
-## Built-in engines
+“Built in” means the implementation is in SHIFT. “Optional local engine” means that program must be installed separately, available on PATH, and compatible with the requested codec/format.
 
-| Engine | Supported work | Implementation |
+| Family | Connected operations | Engine / limits |
 |---|---|---|
-| Image conversion | PNG, JPG/JPEG, WebP, BMP, TIFF | Rust image crate with output decoding/validation |
-| JPEG compression | JPEG files only; lossy quality setting currently 78 | Rust JPEG encoder; keeps the original untouched |
-| ZIP archive | Files, folders, nested files and empty folders | Rust zip crate, DEFLATE level 6, temporary output and read-back validation |
-| File actions | Copy paths; open destination folders | Clipboard API and native Windows file handling |
+| Images | PNG, JPG/JPEG, WebP, BMP and TIFF conversion; JPEG re-encoding; SVG to PNG/PDF; optional HEIC/AVIF/GIF conversion and HEIC/AVIF/GIF export | Rust `image` crate for raster codecs; Inkscape for SVG; FFmpeg for advanced formats/encoders. HEIC/AVIF encoders vary by FFmpeg build. GIF-to-still-image conversion uses a frame, not an animation-preserving round trip. |
+| Audio | MP3, M4A, WAV, FLAC, OGG, Opus, AIFF and WMA conversion; selected formats have size-focused re-encoding | Optional FFmpeg. Not every FFmpeg build includes every encoder. WAV/AIFF are not advertised as size-reducing compression. |
+| Video | MP4, MOV, MKV, WebM, AVI, WMV and GIF conversion; export MP3 audio; compression with format-specific encoder settings | Optional FFmpeg. Codec/profile/encoder support depends on the installed build. Compression may reduce quality and may not reduce every file. |
+| PDF | Optimize PDF streams; merge selected PDFs; export every page to JPG/PNG at 300 DPI; extract searchable text to TXT/Markdown | qpdf for structural compression/merge, Poppler for page rendering/text extraction. Scanned image-only PDFs need OCR, which is not included. |
+| Documents | Convert supported DOCX/ODT/RTF/TXT/HTML/EPUB and related office-compatible formats among the outputs registered in the wheel; TXT/Markdown to safe basic HTML | Optional LibreOffice for document conversions; built-in escaped-text Markdown/TXT-to-HTML converter. Layout and format support vary by input. Apple Pages is not promised on Windows. |
+| Slides | PPT/PPTX/ODP to PDF; export each slide as JPG/PNG | LibreOffice plus Poppler are both required for slide images. |
+| Spreadsheets | XLS/XLSX/ODS/CSV/TSV conversion to PDF/XLSX/ODS/CSV/TSV | Optional LibreOffice. CSV exports can represent only one sheet at a time; formula/layout fidelity depends on the source and target. |
+| Subtitles | SRT ↔ VTT; SRT/VTT to plain TXT | Built-in UTF-8 text/timestamp transformer. It does not perform speech recognition or translate captions. |
+| Archives | ZIP, TAR, TAR.GZ and single-file GZIP creation; TAR/TGZ/TAR.GZ/GZIP to ZIP; RAR/7Z to ZIP | ZIP is created and validated with the existing Rust service. TAR/GZIP are built in. RAR/7Z needs 7-Zip. Extraction rejects link entries, unsafe paths, more than 100,000 entries, paths deeper than 64 components, paths longer than 32,000 bytes, and declared content above 2 GiB. |
 
-**Not implemented yet:** AVIF/HEIC/GIF/SVG support in the built-in image engine, PDF creation or optimization, PDF structural editing, Office conversion, and audio/video conversion. These will remain unavailable until there is a real engine, a safe output flow and representative output tests. Larger optional dependencies such as FFmpeg or LibreOffice may be considered later; they are not silently assumed to be installed.
+### Important boundaries
 
-## SHIFT's different angle
+SHIFT does **not** claim every possible source/target pair. The wheel lists only combinations registered for that family and whose named engine is detected. Installed FFmpeg codec support can still vary, so a conversion may fail with a visible engine error rather than report a false success.
 
-- **Native and lean by design:** Rust processing with a Tauri UI, not a cloud wrapper.
-- **Private by default:** core file processing is local; there is no account or upload dependency.
-- **Compatible actions only:** the wheel does not offer a target format identical to the current input.
-- **Originals are preserved:** each conversion produces a separate output and ZIP is validated before success is shown.
-- **Clear feature boundaries:** unsupported formats are not represented as working buttons.
+Not connected yet: PDF split/page extraction by range, PDF watermark/password protection/redaction, audio transcription/OCR, faithful conversion of proprietary Apple Pages files, archive extraction directly to arbitrary folders, and animation/metadata fidelity guarantees. PDF → office formats is best-effort and can significantly alter layout.
+
+## Optional local engines
+
+SHIFT does not silently download, install or bundle these large tools. Install only the engines needed for your workflow, add their executable directory to Windows `PATH`, then fully restart SHIFT:
+
+- FFmpeg: https://ffmpeg.org/download.html
+- LibreOffice: https://www.libreoffice.org/download/download-libreoffice/
+- qpdf: https://qpdf.sourceforge.io/
+- Poppler tools (`pdftoppm` and `pdftotext`): https://poppler.freedesktop.org/
+- 7-Zip: https://www.7-zip.org/
+- Inkscape: https://inkscape.org/release/
+
+The **Settings → System status** section shows which tools SHIFT detects. Detection checks executable availability; encoder/filter availability can still differ by build. Never download engine executables from untrusted mirrors.
+
+## Output, safety and privacy
+
+- Core work happens locally and requires no account or upload service.
+- Image conversions save new sibling files; ZIP output is saved to Documents/SHIFT/Archives.
+- Generated outputs are staged, measured, and validated for their relevant file structure before finalization. Existing outputs are not intentionally overwritten.
+- Media processes use argument arrays rather than shell-string interpolation, run without a console window on Windows, and keep bounded error excerpts.
+- Archive conversion applies input bounds and rejects unsafe paths and link entries. A file on disk can still be malformed or malicious; validation is not a malware scanner.
+- External engine programs are separate third-party applications with their own licenses and security-update schedules.
 
 ## Current verification status
 
-Automated typecheck, lint, unit tests, Rust tests/Clippy and the Windows installer build run in SHIFT CI. **A real Explorer drag-and-drop test is still required on a Windows desktop**—in particular, checking that modifiers are detected, the transparent window does not disrupt the drag source, the selected petal receives the drop, and the wheel does not disappear before the job starts. A successful compile is not proof that the native interaction works on every Windows/DPI configuration.
-
-## Stack
-
-- React, TypeScript, Vite
-- Tauri 2, Rust
-- image crate for local image decoding/encoding
-- zip plus DEFLATE, walkdir and tempfile for safe archives
-- Tauri native file picker, tray, webview events and global shortcut support
+Frontend checks, Rust tests/Clippy and Windows installer creation run in [SHIFT CI](.github/workflows/ci.yml). A successful build does not establish working Explorer OLE drag/drop, focus preservation, multi-monitor placement, DPI scaling, or every external engine/codec. Those need hands-on verification on a Windows desktop.
 
 ## Development
 
-Install Node.js/npm and Rust stable. On Windows, follow the Tauri 2 prerequisites at https://v2.tauri.app/start/prerequisites/, including Microsoft C++ Build Tools, Windows SDK and WebView2.
+Install Node.js/npm and Rust stable. On Windows, follow Tauri 2 prerequisites: https://v2.tauri.app/start/prerequisites/
 
-    npm install
-    npm run typecheck
-    npm run lint
-    npm test
-    npm run build
-    npm run tauri:dev
+```sh
+npm ci
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run tauri:dev
+```
 
-Build the NSIS installer on Windows with npm run tauri:build. The browser dev server is preview-only; native paths and file processing require the Tauri desktop app.
+Build the NSIS installer on Windows with `npm run tauri:build`.
 
-## Safety and licensing
+## Licensing
 
-- Source images are read, not modified; converted outputs use new names next to the source.
-- Archive names are collision-safe; selected symlink roots are rejected and symlinks encountered inside folders are skipped.
-- ZIP selection and entry counts are bounded, and the completed archive is reopened and read before success.
-- Core operations require no account, cloud service or backend.
-- SHIFT's own redistribution license and final transitive dependency/license inventory must be resolved before public release. See THIRD_PARTY_NOTICES.md and the security documentation.
+SHIFT's own redistribution license and complete direct/transitive third-party notices still need final review before redistribution. Optional programs are not bundled by default. See `THIRD_PARTY_NOTICES.md` and the security documentation.

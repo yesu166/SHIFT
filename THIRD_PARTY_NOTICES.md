@@ -1,23 +1,30 @@
 # Third-party notices
 
-This is a provisional inventory of selected direct dependencies. It is not a complete transitive dependency audit. Reconcile it with the actual npm and Cargo lockfiles before releasing.
+This is a provisional direct-dependency and optional-engine inventory, not a full transitive license audit. Reconcile it against committed npm/Cargo lockfiles and shipped artifacts before distribution.
 
-| Component | Usage | Upstream / license reference | Status |
+| Component | Usage | License / official reference | Packaging |
 |---|---|---|---|
-| React / React DOM | UI runtime | https://github.com/facebook/react — MIT | Direct npm dependency; exact versions not yet locked |
-| Vite | Frontend dev server/build | https://github.com/vitejs/vite — MIT | Direct dev dependency; exact versions not yet locked |
-| TypeScript | Type-checking | https://github.com/microsoft/TypeScript — Apache-2.0 | Direct dev dependency; exact version not yet locked |
-| Tauri 2 / Tauri API / dialog plugin | Desktop shell and native file selection | https://github.com/tauri-apps/tauri — inspect exact package/crate licenses | Lock versions and include notices |
-| Lucide React | Icon components | https://github.com/lucide-icons/lucide — ISC | Lock version and retain license/attribution |
-| Rust zip crate 8.6.0 | ZIP creation and read-back | https://github.com/zip-rs/zip2 — MIT | Pinned requirement; verify downloaded license and transitive packages |
-| image crate | Image format decoding/encoding for JPEG, PNG, WebP, BMP and TIFF | https://github.com/image-rs/image — MIT OR Apache-2.0; verify exact resolved release and included notices | Direct dependency; feature-gated codecs |
-| walkdir | Directory traversal | https://github.com/BurntSushi/walkdir | Verify exact resolved crate license |
-| tempfile | Temporary archive files | https://github.com/Stebalien/tempfile | Verify exact resolved crate license |
-| open | Open destination folder | https://github.com/Byron/open-rs | Verify exact resolved crate license |
+| React / React DOM | UI runtime | MIT — https://github.com/facebook/react | Direct npm dependencies |
+| Vite | Frontend build | MIT — https://github.com/vitejs/vite | Direct npm dev dependency |
+| TypeScript | Type-checking | Apache-2.0 — https://github.com/microsoft/TypeScript | Direct npm dev dependency |
+| Tauri 2 / API / plugins | Desktop shell/native APIs | Review exact package/crate licenses — https://github.com/tauri-apps/tauri | Direct dependencies |
+| Lucide React | Icons | ISC — https://github.com/lucide-icons/lucide | Direct npm dependency |
+| Rust zip crate 8.6.0 | ZIP creation/read-back | MIT — https://github.com/zip-rs/zip2 | Direct Cargo dependency |
+| image crate | Raster decode/encode | MIT OR Apache-2.0 — https://github.com/image-rs/image | Direct Cargo dependency; codecs are feature-gated |
+| flate2 | GZIP encode/decode | MIT OR Apache-2.0 — https://github.com/rust-lang/flate2 | Direct Cargo dependency |
+| tar crate | TAR archive creation/extraction | MIT OR Apache-2.0 — https://github.com/alexcrichton/tar-rs | Direct Cargo dependency |
+| walkdir / tempfile / open | Traversal, staging and opening destinations | Verify exact resolved release notices — https://github.com/BurntSushi/walkdir ; https://github.com/Stebalien/tempfile ; https://github.com/Byron/open-rs | Direct Cargo dependencies |
+| FFmpeg | Optional media codecs/transcoding | License depends on the specific FFmpeg build/configuration — https://ffmpeg.org/legal.html | Not bundled by default; user-installed local engine |
+| LibreOffice | Optional office/document conversion | https://www.libreoffice.org/about-us/licenses/ | Not bundled by default |
+| qpdf | Optional PDF structural tools | https://qpdf.sourceforge.io/ | Not bundled by default |
+| Poppler tools | Optional PDF rendering/text extraction | https://poppler.freedesktop.org/ | Not bundled by default |
+| 7-Zip | Optional RAR/7Z handling | https://www.7-zip.org/ | Not bundled by default |
+| Inkscape | Optional SVG rendering | https://inkscape.org/release/ | Not bundled by default |
 
-## Before distribution
-1. Generate and commit package-lock.json and src-tauri/Cargo.lock.
-2. Inventory all resolved direct/transitive dependencies and any bundled executable.
-3. Include exact required license texts and notices for shipped packages.
-4. Review redistribution obligations for any document engine; free downloads do not mean unrestricted redistribution.
-5. Choose and add SHIFT's own project license before inviting external reuse.
+## Before redistribution
+
+1. Commit and inspect `package-lock.json` and `src-tauri/Cargo.lock`.
+2. Inventory exact direct and transitive dependency versions, license texts and attribution requirements.
+3. Review codecs enabled in any FFmpeg build that is redistributed; GPL/nonfree configurations can change distribution obligations.
+4. If packaging optional engines later, review each engine's redistribution obligations and include all required notices.
+5. Choose and add SHIFT's own project license.

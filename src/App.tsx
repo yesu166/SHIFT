@@ -8,7 +8,7 @@ import {
   Sun, Trash2, Upload, X, Zap, type LucideIcon,
 } from "lucide-react";
 import { formatBytes, formatSignedBytes } from "./lib/format";
-import { getAvailableOperations } from "./lib/operations";
+import { getAvailableOperations, NO_OPTIONAL_ENGINES, type EngineAvailability } from "./lib/operations";
 
 type PageId = "home" | "compress" | "history" | "settings";
 type ThemeMode = "light" | "dark";
@@ -47,13 +47,14 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  const [engineStatus, setEngineStatus] = useState<EngineAvailability>(NO_OPTIONAL_ENGINES);
   const [toast, setToast] = useState<{ message: string; kind: "success" | "error" | "info" } | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(() => localStorage.getItem("shift.theme") === "dark" ? "dark" : "light");
   const [reducedMotion, setReducedMotion] = useState(() => localStorage.getItem("shift.reducedMotion") === "true");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isDesktop = isTauri();
 
-  const availableOperations = useMemo(() => getAvailableOperations(files.map((file) => file.name)), [files]);
+  const availableOperations = useMemo(() => getAvailableOperations(files.map((file) => file.name), engineStatus), [files, engineStatus]);
   const canCreateZip = isDesktop && files.length > 0 && files.every((file) => Boolean(file.path)) && !busy;
 
   useEffect(() => {
@@ -69,6 +70,9 @@ function App() {
     if (isDesktop) {
       void invoke<AppInfo>("get_app_info").then((info) => { if (active) setAppInfo(info); })
         .catch((error: unknown) => { if (active) setToast({ message: "Unable to read SHIFT settings: " + String(error), kind: "error" }); });
+      void invoke<EngineAvailability>("get_engine_status")
+        .then((status) => { if (active) setEngineStatus(status); })
+        .catch((error: unknown) => { if (active) setToast({ message: "Unable to detect optional engines: " + String(error), kind: "error" }); });
     }
     return () => { active = false; };
   }, [isDesktop]);
@@ -271,7 +275,15 @@ function App() {
             <div className="settings-divider" /><div className="settings-row"><span className="settings-icon">{reducedMotion ? <Moon size={18} /> : <Zap size={18} />}</span><span className="settings-row-copy"><strong>Reduce motion</strong><small>Limit interface transitions and movement.</small></span><button className={"toggle" + (reducedMotion ? " on" : "")} type="button" role="switch" aria-checked={reducedMotion} onClick={() => setReducedMotion(!reducedMotion)} aria-label="Reduce motion"><span /></button></div>
           </section>
           <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><HardDrive size={18} /></span><div><h2>Storage &amp; privacy</h2><p>Local outputs, no upload pipeline.</p></div></div><div className="setting-info"><span>Default archives folder</span><strong>{appInfo?.outputFolder ?? "Documents / SHIFT / Archives"}</strong></div><button className="button button-secondary full-width" type="button" onClick={openOutputFolder}><FolderOpen size={16} /> Open destination folder</button><div className="privacy-list"><div><CheckCircle2 size={16} /><span>Core ZIP operation works locally</span></div><div><CheckCircle2 size={16} /><span>No account or cloud upload required</span></div><div><CheckCircle2 size={16} /><span>History remains in this session</span></div></div></section>
-          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Activity size={18} /></span><div><h2>System status</h2><p>Dependency availability in this build.</p></div></div><div className="system-status-row"><span>Desktop bridge</span><strong className={isDesktop ? "system-ready" : "system-warn"}><i /> {isDesktop ? "Connected" : "Web preview only"}</strong></div><div className="system-status-row"><span>ZIP engine</span><strong className="system-ready"><i /> Rust · DEFLATE</strong></div><div className="system-status-row"><span>Image conversion</span><strong className="system-ready"><i /> Rust · 5 formats</strong></div><div className="system-status-row"><span>JPEG compression</span><strong className="system-ready"><i /> Quality 78</strong></div><div className="system-status-row"><span>PDF engine</span><strong className="system-warn"><i /> Not connected</strong></div><div className="system-status-row"><span>Audio / video</span><strong className="system-warn"><i /> Optional engine later</strong></div><p className="settings-footnote">Statuses reflect integrations in this build, not guesses about installed software.</p></section>
+          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Activity size={18} /></span><div><h2>System status</h2><p>Dependency availability in this build.</p></div></div><div className="system-status-row"><span>Desktop bridge</span><strong className={isDesktop ? "system-ready" : "system-warn"}><i /> {isDesktop ? "Connected" : "Web preview only"}</strong></div><div className="system-status-row"><span>ZIP engine</span><strong className="system-ready"><i /> Rust · DEFLATE</strong></div><div className="system-status-row"><span>Image conversion</span><strong className="system-ready"><i /> Rust · 5 formats</strong></div><div className="system-status-row"><span>JPEG compression</span><strong className="system-ready"><i /> Quality 78</strong></div><div className="system-status-row"><span>PDF tools (qpdf)</span><strong className={engineStatus.qpdf ? "system-ready" : "system-warn"}><i /> {engineStatus.qpdf ? "Detected" : "Install qpdf"}</strong></div>
+          <div className="system-status-row"><span>PDF render/text (Poppler)</span><strong className={engineStatus.poppler ? "system-ready" : "system-warn"}><i /> {engineStatus.poppler ? "Detected" : "Install Poppler"}</strong></div>
+          <div className="system-status-row"><span>SVG export (Inkscape)</span><strong className={engineStatus.inkscape ? "system-ready" : "system-warn"}><i /> {engineStatus.inkscape ? "Inkscape detected" : "Install Inkscape"}</strong></div>
+          <div className="system-status-row"><span>Audio/video + advanced images</span><strong className={engineStatus.ffmpeg ? "system-ready" : "system-warn"}><i /> {engineStatus.ffmpeg ? "FFmpeg detected" : "Install FFmpeg"}</strong></div>
+          <div className="system-status-row"><span>Documents, slides, sheets</span><strong className={engineStatus.libreOffice ? "system-ready" : "system-warn"}><i /> {engineStatus.libreOffice ? "LibreOffice detected" : "Install LibreOffice"}</strong></div>
+          <div className="system-status-row"><span>RAR / 7Z archive conversion</span><strong className={engineStatus.sevenZip ? "system-ready" : "system-warn"}><i /> {engineStatus.sevenZip ? "7-Zip detected" : "Install 7-Zip"}</strong></div>
+          <div className="system-status-row"><span>TAR / TAR.GZ / GZIP</span><strong className="system-ready"><i /> Built in</strong></div>
+          <div className="system-status-row"><span>Subtitles SRT / VTT / TXT</span><strong className="system-ready"><i /> Built in</strong></div>
+          <p className="settings-footnote">SHIFT detects optional tools on startup. Install the desired tool, add it to PATH, then fully restart SHIFT. The wheel only offers actions when their engine is detected.</p></section>
         </div>
       </div>}
 

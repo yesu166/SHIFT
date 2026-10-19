@@ -8,10 +8,9 @@ import {
 } from "lucide-react";
 import { formatBytes } from "../lib/format";
 import { getRadialPosition } from "../lib/radial";
-import { getWheelOperations } from "../lib/operations";
+import { getWheelOperations, NO_OPTIONAL_ENGINES, type EngineAvailability } from "../lib/operations";
 
 type WheelMode = "convert" | "tools" | "actions";
-type ImageFormat = "png" | "jpg" | "webp" | "bmp" | "tiff";
 
 interface ZipResult {
   outputPath: string;
@@ -26,13 +25,14 @@ interface ImageResult {
   inputBytes: number;
   outputBytes: number;
   bytesSaved: number;
+  detail?: string;
 }
 interface WheelAction {
   id: string;
   title: string;
   detail: string;
-  kind: "convert" | "compress" | "archive" | "copy" | "folder";
-  target?: ImageFormat;
+  kind: "convert" | "compress" | "archive" | "tar" | "gzip" | "copy" | "folder" | "engine";
+  target?: string;
 }
 interface JobSummary {
   title: string;
@@ -51,30 +51,41 @@ function hintForMode(mode: WheelMode): string {
   return mode === "convert" ? "SHIFT · CONVERT" : mode === "tools" ? "ALT + SHIFT · TOOLS" : "CTRL + SHIFT · ACTIONS";
 }
 function iconFor(action: WheelAction) {
-  if (action.kind === "archive") return Archive;
+  if (action.kind === "archive" || action.kind === "tar" || action.kind === "gzip") return Archive;
   if (action.kind === "compress") return ImageDown;
   if (action.kind === "copy") return Clipboard;
   if (action.kind === "folder") return FolderOpen;
   if (action.kind === "convert") return FileImage;
   return ArrowRightLeft;
 }
-function buildActions(paths: string[], mode: WheelMode): WheelAction[] {
-  return getWheelOperations(paths.map(leafName), mode).map((operation) => {
+function buildActions(paths: string[], mode: WheelMode, engines: EngineAvailability): WheelAction[] {
+  return getWheelOperations(paths.map(leafName), mode, engines).map((operation) => {
     const id = operation.id;
     const target = operation.targetFormat;
     const kind: WheelAction["kind"] = id.startsWith("convert-") ? "convert"
       : id === "compress-jpeg" ? "compress"
       : id === "create-zip" ? "archive"
-      : id === "copy-paths" ? "copy" : "folder";
+      : id === "create-tar" || id === "create-targz" ? "tar"
+      : id === "create-gzip" ? "gzip"
+      : id === "copy-paths" ? "copy"
+      : id === "open-folder" ? "folder" : "engine";
     return {
       id,
-      title: target ? target.toUpperCase() : operation.title,
+      title: operation.title,
       detail: id === "compress-jpeg" ? "Quality 78"
-        : id === "create-zip" ? "Bundle files"
+        : id === "create-zip" ? "Validated ZIP"
+        : id === "create-tar" ? "Bundle files"
+        : id === "create-targz" ? "Compress archive"
+        : id === "create-gzip" ? "Single file"
+        : id === "pdf-optimize" ? "Reduce PDF size"
+        : id === "pdf-merge" ? "Combine PDFs"
+        : id.startsWith("media-compress-") ? "Re-encode locally"
+        : operation.requiredEngine ? "Uses " + operation.requiredEngine
+        : target ? "Convert to " + target.toUpperCase()
         : id === "copy-paths" ? "To clipboard"
-        : id === "open-folder" ? "Open destination" : "Convert format",
+        : id === "open-folder" ? "Open destination" : operation.description,
       kind,
-      ...(target ? { target: target as ImageFormat } : {}),
+      ...(target ? { target } : {}),
     };
   });
 }
@@ -93,13 +104,16 @@ export default function WheelOverlay() {
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<JobSummary | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [engineStatus, setEngineStatus] = useState<EngineAvailability>(NO_OPTIONAL_ENGINES);
+  const engineStatusRef = useRef<EngineAvailability>(NO_OPTIONAL_ENGINES);
   const busyRef = useRef(false);
   const handledDropRef = useRef(false);
   const modeRef = useRef<WheelMode>("convert");
-  const actions = useMemo(() => buildActions(dragPaths, mode), [dragPaths, mode]);
+  const actions = useMemo(() => buildActions(dragPaths, mode, engineStatus), [dragPaths, mode, engineStatus]);
 
   useEffect(() => { busyRef.current = busy; }, [busy]);
   useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { engineStatusRef.current = engineStatus; }, [engineStatus]);
 
   const hide = useCallback(async () => {
     try { await invoke("hide_wheel_overlay"); } catch { /* App may already be closing. */ }
@@ -111,7 +125,7 @@ export default function WheelOverlay() {
       return;
     }
     if (busyRef.current) return;
-    const action = buildActions(paths, modeRef.current).find((item) => item.id === actionId);
+    const action = buildActions(paths, modeRef.current, engineStatusRef.current).find((item) => item.id === actionId);
     if (!action) {
       setNotice("That action is not available for this selection.");
       return;
@@ -143,6 +157,31 @@ export default function WheelOverlay() {
           outputBytes: results.reduce((sum, result) => sum + result.outputBytes, 0),
           detail: results.length + " image" + (results.length === 1 ? "" : "s") + " converted to " + action.target.toUpperCase(),
         });
+      } else if (action.kind === "tar" || action.kind === "gzip" || action.kind === "engine") {
+        const operationId = action.id.startsWith("ffmpeg-image-convert-") ? "media-convert"
+          : action.id.startsWith("media-audio-") || action.id.startsWith("media-video-") ? "media-convert"
+          : action.id.startsWith("extract-audio-") ? "extract-audio"
+          : action.id.startsWith("video-frame-") ? "media-convert"
+          : action.id.startsWith("media-compress-") ? "media-compress"
+          : action.id.startsWith("svg-to-") ? "svg-convert"
+          : action.id === "image-to-pdf" || action.id.startsWith("office-convert-") || action.id.startsWith("presentation-convert-") || action.id.startsWith("spreadsheet-convert-") || action.id.startsWith("pdf-office-") ? "office-convert"
+          : action.id.startsWith("pdf-to-image-") ? "pdf-to-image"
+          : action.id.startsWith("pdf-to-text-") ? "pdf-to-text"
+          : action.id.startsWith("subtitle-") ? "subtitle-convert"
+          : action.id === "archive-to-zip" ? "rar-to-zip" : action.id;
+        const results = await invoke<ImageResult[]>("execute_engine_operation", {
+          inputs: paths,
+          operationId,
+          targetFormat: action.target ?? null,
+        });
+        const uniqueInputs = Array.from(new Map(results.map((result) => [result.inputPath, result.inputBytes])).values());
+        setSummary({
+          title: action.title + " complete",
+          outputs: results.map((result) => result.outputPath),
+          inputBytes: uniqueInputs.reduce((sum, value) => sum + value, 0),
+          outputBytes: results.reduce((sum, result) => sum + result.outputBytes, 0),
+          detail: results.length + " output" + (results.length === 1 ? "" : "s") + (results[0]?.detail ? " · " + results[0].detail : ""),
+        });
       } else if (action.kind === "compress") {
         const results = await invoke<ImageResult[]>("compress_jpeg_images", { inputs: paths });
         setSummary({
@@ -168,6 +207,7 @@ export default function WheelOverlay() {
   }, []);
 
   useEffect(() => {
+    void invoke<EngineAvailability>("get_engine_status").then((status) => setEngineStatus(status)).catch(() => {});
     document.documentElement.dataset.theme = localStorage.getItem("shift.theme") === "dark" ? "dark" : "light";
     document.documentElement.dataset.reducedMotion = localStorage.getItem("shift.reducedMotion") === "true" ? "true" : "false";
 

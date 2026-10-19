@@ -1,29 +1,24 @@
 # Security and permissions
 
 ## Current design
-- Core image conversion, JPEG compression and ZIP processing are local; no cloud API, required account, telemetry or backend integration is present.
-- The frontend invokes named Tauri commands for image conversion/compression, ZIP creation, opening output locations and showing/hiding the wheel; no arbitrary shell bridge is exposed.
-- File selection uses the Tauri dialog plugin; OS file drops use the typed Tauri webview event API.
-- Image conversion, JPEG compression and ZIP work run in blocking workers.
-- Selected symbolic-link roots are rejected; symbolic links inside selected folders are skipped.
-- Duplicate and overlapping input roots are rejected.
-- Image conversions use temporary files beside the input and decode the staged output before finalization. ZIP archives are written to a temporary file in Documents/SHIFT/Archives, reopened, and every regular entry is read before finalization.
-- Final output uses a unique path and non-clobbering persistence; existing outputs are not intentionally overwritten.
-- Archive-name input rejects control characters, reserved filename characters/device names, path separators, and trailing dots/spaces.
-- Enumeration is bounded to 1,000 selected roots and 100,000 entries.
-- Session history contains output path, sizes, entry count and timestamp, not document contents or passwords.
 
-## Native permissions
-- The Tauri capability grants core defaults and dialog open permission.
-- The output folder opens through the Rust open crate.
-- A native Windows poller checks the mouse button, cursor movement, modifier keys and common Explorer/Desktop window classes. Escape is registered only while the wheel is visible and is removed when it hides.
-- The separate wheel window is intended to be non-focusable so it does not steal focus from Explorer during a drag; this behavior still needs a manual Windows test.
-- Closing the main window hides it to the notification-area tray. The tray provides Open SHIFT and Quit SHIFT. No Windows Service Control Manager service, sign-in autostart, file association, or Explorer extension is installed.
-- Explorer/Desktop drag-drop is implemented in source using native Tauri events; actual OLE continuity, hover hit testing, mode switching, DPI behavior and tray lifecycle remain manual verification gates.
+- Core work is local; SHIFT has no required cloud API, login or upload dependency.
+- The frontend can invoke named native commands for ZIP/image processing, engine detection and engine operations. It has no arbitrary shell command bridge.
+- External commands are launched with discrete argument arrays, not shell interpolation. Windows subprocesses are launched without a visible console window.
+- Engines run only when the user has independently installed them and placed their executable directory on PATH.
+- External process output is truncated to bounded error excerpts.
+- Image/PDF/Office outputs receive format-specific structural checks; ZIP output is reopened and every regular entry is read; TAR/GZIP output is parsed/decompressed for validation.
+- Archive extraction checks for absolute/parent-relative paths, symbolic/hard links and special entries. It limits expanded content to 2 GiB, 100,000 entries, path depth to 64 components and path length to 32,000 bytes.
+- Collision-safe outputs preserve source files; temporary outputs are finalized using non-clobbering persistence.
+- The app's Tauri process remains tray-resident when the main window closes; there is no Windows Service Control Manager service or sign-in autostart.
+
+## Optional tools
+
+FFmpeg, LibreOffice, qpdf, Poppler, 7-Zip and Inkscape are separate third-party software programs. They are not silently installed by SHIFT, and may have their own license terms, updates, codecs or plugins. Use official/reputable distribution sources, keep them updated, and do not assume that executable detection implies all formats/encoders are available.
 
 ## Remaining review
-- Test Windows path and permission behavior, invalid image inputs, Unicode, large files, locked files, disk-full conditions, monitor/DPI changes, image round-trips and Explorer extraction.
-- Review Tauri capabilities against resolved package versions.
-- Add bounded/redacted diagnostics before integrating external processes.
-- Complete dependency/license inventory and verify network behavior of packaged dependencies.
-- Do not add archive extraction before path traversal, symlink, expansion-size, depth/count and collision defenses are tested.
+
+- Complete direct/transitive dependency license inventory and choose SHIFT's own redistribution license before public release.
+- Test malformed archive inputs, corrupted codecs, invalid PDFs, unsupported LO filters, Unicode/spaces, path traversal, links, large files, disk-full/locked files and concurrent operations.
+- Manually test Explorer drag/drop, keyboard gesture timing, focus behavior, result actions, tray lifecycle and multi-monitor/high-DPI placement.
+- Fidelity testing is required for Office/PDF jobs; basic file-format validation cannot prove a document looks the same as the source.

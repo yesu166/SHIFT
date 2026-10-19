@@ -1,5 +1,6 @@
 mod zip_service;
 mod conversion_service;
+mod engine_service;
 
 const WHEEL_WINDOW_LABEL: &str = "wheel";
 const WHEEL_WINDOW_SIZE: f64 = 520.0;
@@ -12,6 +13,7 @@ struct AppInfo {
 }
 
 use conversion_service::{compress_jpeg_images as engine_compress_jpeg_images, convert_images as engine_convert_images, ImageOperationResult};
+use engine_service::{detect_engines, execute_operation as run_engine_operation, EngineOperationResult, EngineStatus};
 use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
@@ -158,6 +160,28 @@ async fn compress_jpeg_images(inputs: Vec<String>) -> Result<Vec<ImageOperationR
     tauri::async_runtime::spawn_blocking(move || engine_compress_jpeg_images(&inputs))
         .await
         .map_err(|error| format!("The JPEG compression worker stopped unexpectedly: {error}"))?
+}
+
+#[tauri::command]
+async fn get_engine_status() -> Result<EngineStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || detect_engines())
+        .await
+        .map_err(|error| format!("The engine detection worker stopped unexpectedly: {error}"))
+}
+
+#[tauri::command]
+async fn execute_engine_operation(
+    app: AppHandle,
+    inputs: Vec<String>,
+    operation_id: String,
+    target_format: Option<String>,
+) -> Result<Vec<EngineOperationResult>, String> {
+    let output_dir = archives_directory(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        run_engine_operation(&inputs, &operation_id, target_format.as_deref(), &output_dir)
+    })
+    .await
+    .map_err(|error| format!("The external engine worker stopped unexpectedly: {error}"))?
 }
 
 #[tauri::command]
@@ -341,6 +365,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_app_info,
+            get_engine_status,
+            execute_engine_operation,
             create_zip,
             convert_images_to_format,
             compress_jpeg_images,
