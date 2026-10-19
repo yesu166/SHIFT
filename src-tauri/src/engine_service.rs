@@ -819,7 +819,9 @@ fn unpack_tar_to_directory<R: Read>(reader: R, destination: &Path) -> Result<(),
                 return Err("TAR contents exceed SHIFT's 2 GiB safe extraction limit.".into());
             }
         }
-        let output = destination.join(&relative);
+        // Build the candidate from the canonical root so Windows path prefixes match
+        // the root used by the containment check below.
+        let output = root.join(&relative);
         if !output.starts_with(&root) {
             return Err("TAR output path escaped its extraction folder; extraction refused.".into());
         }
