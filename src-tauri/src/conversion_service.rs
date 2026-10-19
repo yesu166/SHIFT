@@ -1,4 +1,4 @@
-use image::{codecs::jpeg::JpegEncoder, imageops, DynamicImage, ImageBuffer, ImageFormat, ImageReader, Rgb};
+use image::{codecs::jpeg::JpegEncoder, DynamicImage, ImageBuffer, ImageFormat, ImageReader, Rgb};
 use serde::Serialize;
 use std::{
     fs,
@@ -20,8 +20,18 @@ pub struct ImageOperationResult {
 
 fn jpeg_compatible(image: &DynamicImage) -> DynamicImage {
     let rgba = image.to_rgba8();
-    let mut background = ImageBuffer::from_pixel(rgba.width(), rgba.height(), Rgb([255, 255, 255]));
-    imageops::overlay(&mut background, &rgba, 0, 0);
+    let background = ImageBuffer::from_fn(rgba.width(), rgba.height(), |x, y| {
+        let pixel = rgba.get_pixel(x, y);
+        let alpha = u16::from(pixel[3]);
+        let blend_on_white = |channel: u8| {
+            ((u16::from(channel) * alpha + 255 * (255 - alpha) + 127) / 255) as u8
+        };
+        Rgb([
+            blend_on_white(pixel[0]),
+            blend_on_white(pixel[1]),
+            blend_on_white(pixel[2]),
+        ])
+    });
     DynamicImage::ImageRgb8(background)
 }
 
