@@ -1,5 +1,4 @@
 import react from "@vitejs/plugin-react";
-import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -9,8 +8,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: fileURLToPath(new URL("./index.html", import.meta.url)),
-        wheel: fileURLToPath(new URL("./wheel.html", import.meta.url)),
+        main: "index.html",
+        wheel: "wheel.html",
       },
     },
   },
