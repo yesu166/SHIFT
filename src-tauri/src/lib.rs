@@ -7,8 +7,8 @@ use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    webview::{WebviewUrl, WebviewWindowBuilder},
-    AppHandle, Manager, PhysicalPosition, Position, State, WebviewWindow,
+    webview::WebviewWindowBuilder,
+    AppHandle, Manager, PhysicalPosition, Position, State, WebviewUrl, WebviewWindow,
 };
 use tauri_plugin_global_shortcut::{
     Code, GlobalShortcutExt, Shortcut, ShortcutState,
@@ -273,16 +273,36 @@ pub fn run() {
                 .decorations(false)
                 .transparent(true)
                 .always_on_top(true)
+                .focusable(false)
                 .skip_taskbar(true)
                 .visible(false)
                 .shadow(false)
                 .build()?;
 
             let app_handle = app.handle().clone();
-            let shortcut = load_saved_shortcut(&app_handle);
-            app.manage(WheelShortcutState(Mutex::new(shortcut.clone())));
-            app.global_shortcut()
-                .register(shortcut_for_key(&shortcut).map_err(std::io::Error::other)?)?;
+            let saved_shortcut = load_saved_shortcut(&app_handle);
+            let mut candidates = vec![saved_shortcut.clone()];
+            for candidate in ["F8", "F7", "F6", "F9", "F10", "F11", "F12"] {
+                if !candidates.iter().any(|existing| existing == candidate) {
+                    candidates.push(candidate.to_string());
+                }
+            }
+            let mut active_shortcut = None;
+            for candidate in candidates {
+                let shortcut = shortcut_for_key(&candidate)
+                    .expect("startup shortcut candidates are restricted to F6-F12");
+                if app.global_shortcut().register(shortcut).is_ok() {
+                    active_shortcut = Some(candidate);
+                    break;
+                }
+            }
+            let active_shortcut = active_shortcut.ok_or_else(|| {
+                std::io::Error::other("No supported SHIFT activation key could be registered.")
+            })?;
+            if active_shortcut != saved_shortcut {
+                let _ = save_shortcut(&app_handle, &active_shortcut);
+            }
+            app.manage(WheelShortcutState(Mutex::new(active_shortcut)));
 
             let show_item = MenuItem::with_id(app, "open", "Open SHIFT", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit SHIFT", true, None::<&str>)?;
