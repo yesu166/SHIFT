@@ -2,7 +2,7 @@
 
 ## Current design
 - Core ZIP processing is local; no cloud API, required account, telemetry or backend integration is present.
-- The frontend invokes named Tauri commands for app info, ZIP creation and opening the destination folder; no arbitrary shell bridge is exposed.
+- The frontend invokes named Tauri commands for app info, ZIP creation, opening the destination folder, showing/hiding the wheel, and reading/changing its shortcut; no arbitrary shell bridge is exposed.
 - File selection uses the Tauri dialog plugin; OS file drops use the typed Tauri webview event API.
 - ZIP work runs in a blocking worker.
 - Selected symbolic-link roots are rejected; symbolic links inside selected folders are skipped.
@@ -16,8 +16,10 @@
 ## Native permissions
 - The Tauri capability grants core defaults and dialog open permission.
 - The output folder opens through the Rust open crate.
-- No global keyboard hook, startup registration, file association or Explorer extension is installed.
-- System-wide Shift-drag is not implemented.
+- A global function-key shortcut (F6–F12; F8 default) is registered via the Tauri global-shortcut plugin. Escape is registered only while the wheel is visible and is removed when it hides.
+- The separate wheel window is intended to be non-focusable so it does not steal focus from Explorer during a drag; this behavior still needs a manual Windows test.
+- Closing the main window hides it to the notification-area tray. The tray provides Open SHIFT and Quit SHIFT. No Windows Service Control Manager service, sign-in autostart, file association, or Explorer extension is installed.
+- Cross-app drag/drop is implemented in source using native Tauri events; OLE drag continuity and target hit testing remain manual verification gates.
 
 ## Remaining review
 - Test Windows path and permission behavior, invalid inputs, Unicode, large files, locked files, disk-full conditions, monitor/DPI changes and Explorer extraction.

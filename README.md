@@ -12,6 +12,16 @@ The first workflow under implementation is **Compress files to ZIP**: choose fil
 - The wheel opens over other applications from a configurable global function key and uses Windows native file-drop events. Explorer drag-and-drop, DPI/multi-monitor placement, and tray lifecycle still need manual Windows GUI validation before release.
 - Not release-ready, signed, or fully audited for redistribution licensing.
 
+## Using the floating wheel
+
+1. Launch SHIFT once. Closing its main window keeps SHIFT running in the notification-area tray; choose **Quit SHIFT** from the tray menu to stop it.
+2. Open **Settings → Wheel shortcut** and choose an activation key from F6–F12. F8 is the default.
+3. In Windows Explorer or another app, start dragging a file or folder and press/hold the configured key.
+4. When the wheel appears near the pointer, move the drag onto the orange **Compress to ZIP** action and release.
+5. SHIFT validates the archive and saves it to Documents/SHIFT/Archives. Press Escape or the wheel's close control to dismiss it.
+
+The wheel currently performs ZIP creation only. PDF and Office conversion options are not enabled yet. Launching automatically at Windows sign-in is not implemented. The Explorer drag/drop and tray workflow still require final interactive validation on Windows.
+
 ## Stack
 - React + TypeScript + Vite.
 - Tauri 2 + Rust.
