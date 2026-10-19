@@ -348,9 +348,9 @@ fn run_ffmpeg(input: &Path, operation: &str, target: &str) -> Result<Vec<EngineO
     let is_compression = operation == "media-compress";
     let label = if is_compression { "compressed" } else { "converted" };
     let detail = if is_compression {
-        format!("FFmpeg · size-focused re-encode to {target.to_uppercase()} (lossy settings may reduce quality)")
+        format!("FFmpeg · size-focused re-encode to {} (lossy settings may reduce quality)", target.to_uppercase())
     } else {
-        format!("FFmpeg · {target.to_uppercase()}")
+        format!("FFmpeg · {}", target.to_uppercase())
     };
     Ok(vec![commit_staged_file(input, &staged, &target, label, &detail)?])
 }
@@ -416,7 +416,7 @@ fn run_office(input: &Path, target: &str) -> Result<Vec<EngineOperationResult>, 
         }).collect();
     }
     let staged = work.path().join(format!("{}.{}", stem(input)?, target));
-    Ok(vec![commit_staged_file(input, &staged, &target, "converted", &format!("LibreOffice · {target.to_uppercase()}"))?])
+    Ok(vec![commit_staged_file(input, &staged, &target, "converted", &format!("LibreOffice · {}", target.to_uppercase()))?])
 }
 
 fn pdf_optimize(input: &Path) -> Result<Vec<EngineOperationResult>, String> {
