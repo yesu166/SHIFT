@@ -125,7 +125,7 @@ fn position_wheel_near_cursor(window: &WebviewWindow) -> Result<(), String> {
         .map_err(|error| format!("Could not position the SHIFT wheel: {error}"))
 }
 
-fn show_wheel_overlay(app: &AppHandle) -> Result<(), String> {
+fn show_wheel_window(app: &AppHandle) -> Result<(), String> {
     let window = app
         .get_webview_window(WHEEL_WINDOW_LABEL)
         .ok_or_else(|| "The SHIFT wheel window is not available.".to_string())?;
@@ -182,7 +182,7 @@ fn open_output_folder(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 fn show_wheel_overlay(app: AppHandle) -> Result<(), String> {
-    show_wheel_overlay(&app)
+    show_wheel_window(&app)
 }
 
 #[tauri::command]
@@ -241,7 +241,7 @@ pub fn run() {
                 .with_handler(|app, _shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
                         // Do not focus the overlay: stealing focus can interrupt the Explorer drag.
-                        let _ = show_wheel_overlay(app);
+                        let _ = show_wheel_window(app);
                     }
                 })
                 .build(),
