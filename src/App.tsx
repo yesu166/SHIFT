@@ -48,7 +48,6 @@ function App() {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [toast, setToast] = useState<{ message: string; kind: "success" | "error" | "info" } | null>(null);
-  const [activationKey, setActivationKey] = useState(() => localStorage.getItem("shift.activationKey") || "F8");
   const [theme, setTheme] = useState<ThemeMode>(() => localStorage.getItem("shift.theme") === "dark" ? "dark" : "light");
   const [reducedMotion, setReducedMotion] = useState(() => localStorage.getItem("shift.reducedMotion") === "true");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,18 +70,6 @@ function App() {
       void invoke<AppInfo>("get_app_info").then((info) => { if (active) setAppInfo(info); })
         .catch((error: unknown) => { if (active) setToast({ message: "Unable to read SHIFT settings: " + String(error), kind: "error" }); });
     }
-    return () => { active = false; };
-  }, [isDesktop]);
-  useEffect(() => {
-    if (!isDesktop) return;
-    let active = true;
-    void invoke<string>("get_wheel_shortcut")
-      .then((key) => {
-        if (!active) return;
-        setActivationKey(key);
-        localStorage.setItem("shift.activationKey", key);
-      })
-      .catch((error: unknown) => setToast({ message: "Unable to read wheel shortcut: " + String(error), kind: "error" }));
     return () => { active = false; };
   }, [isDesktop]);
   useEffect(() => {
@@ -184,23 +171,6 @@ function App() {
 
 
 
-  const updateActivationKey = useCallback(async (key: string) => {
-    if (!isDesktop) {
-      setActivationKey(key);
-      localStorage.setItem("shift.activationKey", key);
-      setToast({ message: "Install the Windows desktop build to activate the global wheel shortcut.", kind: "info" });
-      return;
-    }
-    try {
-      const savedKey = await invoke<string>("set_wheel_shortcut", { key });
-      setActivationKey(savedKey);
-      localStorage.setItem("shift.activationKey", savedKey);
-      setToast({ message: "Wheel shortcut set to " + savedKey + ". Hold it while dragging a file.", kind: "success" });
-    } catch (error) {
-      setToast({ message: "Could not change the wheel shortcut: " + String(error), kind: "error" });
-    }
-  }, [isDesktop]);
-
   const currentTitle = NAV_ITEMS.find((item) => item.id === page)?.label ?? "Home";
 
   return <div className="app-shell">
@@ -227,17 +197,17 @@ function App() {
     </aside>
 
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumbs"><span>SHIFT</span><ChevronRight size={14} /><strong>{currentTitle}</strong></div><div className="topbar-actions"><div className={"local-pill" + (isDesktop ? " connected" : "")}><i />{isDesktop ? "LOCAL MODE" : "PREVIEW MODE"}</div><div className="shortcut-hint">WHEEL · {activationKey}</div></div></header>
+      <header className="topbar"><div className="breadcrumbs"><span>SHIFT</span><ChevronRight size={14} /><strong>{currentTitle}</strong></div><div className="topbar-actions"><div className={"local-pill" + (isDesktop ? " connected" : "")}><i />{isDesktop ? "LOCAL MODE" : "PREVIEW MODE"}</div><div className="shortcut-hint">SHIFT · ALT+SHIFT · CTRL+SHIFT</div></div></header>
 
       {page === "home" && <div className="page page-home">
-        <div className="page-intro"><div><div className="eyebrow"><Sparkles size={14} /> A LITTLE LESS FILE CHAOS</div><h1>Your files.<br /><span>Sorted.</span></h1><p className="intro-copy">Hold <strong>{activationKey}</strong> while dragging a file from any app. Drop it on the wheel to compress it locally.</p></div>
+        <div className="page-intro"><div><div className="eyebrow"><Sparkles size={14} /> A LITTLE LESS FILE CHAOS</div><h1>Your files.<br /><span>Sorted.</span></h1><p className="intro-copy">Drag a file from File Explorer, then hold <strong>Shift</strong> to convert images, <strong>Alt+Shift</strong> for tools, or <strong>Ctrl+Shift</strong> for file actions.</p></div>
           <div className="intro-orbit" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit-center"><span className="brand-mark"><span /></span></div><span className="orbit-file orbit-a"><FileText size={19} /></span><span className="orbit-file orbit-b"><FileArchive size={19} /></span><span className="orbit-file orbit-c"><CheckCircle2 size={19} /></span></div>
         </div>
         <div className={"drop-card" + (isDragging ? " drag-active" : "")} onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }} onDragOver={(e) => e.preventDefault()} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragging(false); }} onDrop={(e) => { e.preventDefault(); setIsDragging(false); addBrowserFiles(e.dataTransfer.files); }}>
           <input ref={fileInputRef} className="hidden-file-input" type="file" multiple onChange={(e) => { if (e.target.files) addBrowserFiles(e.target.files); e.currentTarget.value = ""; }} />
           <div className="drop-inner"><div className="upload-illustration"><div className="upload-sheet"><FileText size={23} /><span /></div><div className="upload-arrow"><Upload size={18} /></div></div>
-            <div className="drop-copy"><h2>Drop files to get moving</h2><p>PDF, Word, Excel, PowerPoint, images, folders — bundle anything into a ZIP.</p><div className="drop-actions"><button className="button button-primary" type="button" onClick={chooseFiles}>Choose files <ArrowRight size={16} /></button><button className="button button-secondary" type="button" onClick={chooseFolders}><FolderOpen size={15} /> Choose folders</button><span>or drag them here</span></div></div>
-            <div className="drop-format-row"><span>PDF</span><span>DOCX</span><span>XLSX</span><span>PPTX</span><span>+ ANY FILE</span></div>
+            <div className="drop-copy"><h2>Drop files to get moving</h2><p>Convert supported image formats, compress JPEGs, or bundle any files and folders into a ZIP.</p><div className="drop-actions"><button className="button button-primary" type="button" onClick={chooseFiles}>Choose files <ArrowRight size={16} /></button><button className="button button-secondary" type="button" onClick={chooseFolders}><FolderOpen size={15} /> Choose folders</button><span>or drag them here</span></div></div>
+            <div className="drop-format-row"><span>PNG</span><span>JPG</span><span>WEBP</span><span>TIFF</span><span>+ ANY FILE → ZIP</span></div>
           </div>
         </div>
         <section className="wheel-instructions-card">
@@ -245,7 +215,7 @@ function App() {
           <div className="wheel-instructions-copy">
             <span className="eyebrow">GLOBAL QUICK ACTION</span>
             <h2>Use SHIFT over any app</h2>
-            <p>Start dragging a file, hold <strong>{activationKey}</strong>, then drop it on <strong>Compress to ZIP</strong>. SHIFT stays available in the system tray when this window is closed.</p>
+            <p>Start dragging a file, then tap <strong>Shift</strong> for conversions, <strong>Alt+Shift</strong> for tools, or <strong>Ctrl+Shift</strong> for file actions. The wheel stays open until you drop or cancel.</p>
           </div>
           <button className="button button-secondary" type="button" onClick={() => setPage("settings")}>Change key</button>
         </section>
@@ -287,20 +257,21 @@ function App() {
 
       {page === "settings" && <div className="page"><div className="page-title-row"><div><div className="eyebrow"><Settings size={14} /> PREFERENCES</div><h1>Make SHIFT yours.</h1><p>Settings that actually change behavior. No decorative switches.</p></div></div>
         <div className="settings-layout">
-          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Command size={18} /></span><div><h2>Wheel shortcut</h2><p>Choose the key that opens the floating wheel.</p></div></div>
-            <label className="shortcut-label" htmlFor="wheel-shortcut-select">Activation key</label>
-            <select id="wheel-shortcut-select" className="shortcut-select" value={activationKey} onChange={(event) => { void updateActivationKey(event.currentTarget.value); }}>
-              {["F6", "F7", "F8", "F9", "F10", "F11", "F12"].map((key) => <option key={key} value={key}>{key}{key === "F8" ? " · default" : ""}</option>)}
-            </select>
-            <p className="settings-footnote">Start dragging in File Explorer or another app, hold {activationKey}, then drop onto the orange ZIP action. Press Escape to close the wheel.</p>
-            <div className="privacy-list"><div><CheckCircle2 size={16} /><span>Works over other applications</span></div><div><CheckCircle2 size={16} /><span>Remains active in the system tray</span></div></div>
+          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Command size={18} /></span><div><h2>Drag gestures</h2><p>Bring the right action to your pointer without switching windows.</p></div></div>
+            <div className="gesture-shortcut-list">
+              <div><kbd>Shift</kbd><span><strong>Convert</strong><small>PNG, JPG, WebP, BMP and TIFF from supported image inputs.</small></span></div>
+              <div><kbd>Alt + Shift</kbd><span><strong>Tools</strong><small>Compress JPEGs or bundle any selection into ZIP.</small></span></div>
+              <div><kbd>Ctrl + Shift</kbd><span><strong>File actions</strong><small>Copy selected file paths or open SHIFT's output folder.</small></span></div>
+            </div>
+            <p className="settings-footnote">Start the drag first, then press the modifier. Outputs are written as new files; the source is never replaced. Press Escape to cancel.</p>
+            <div className="privacy-list"><div><CheckCircle2 size={16} /><span>Native floating wheel over Explorer</span></div><div><CheckCircle2 size={16} /><span>Runs locally without file uploads</span></div></div>
           </section>
           <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Sun size={18} /></span><div><h2>Appearance</h2><p>Choose the workspace contrast that works for you.</p></div></div>
             <div className="theme-picker" role="group" aria-label="Color theme"><button className={"theme-choice" + (theme === "light" ? " selected" : "")} type="button" onClick={() => setTheme("light")}><span className="theme-swatch theme-light"><i /><i /><i /></span><span>Light</span>{theme === "light" && <Check size={16} />}</button><button className={"theme-choice" + (theme === "dark" ? " selected" : "")} type="button" onClick={() => setTheme("dark")}><span className="theme-swatch theme-dark"><i /><i /><i /></span><span>Dark</span>{theme === "dark" && <Check size={16} />}</button></div>
             <div className="settings-divider" /><div className="settings-row"><span className="settings-icon">{reducedMotion ? <Moon size={18} /> : <Zap size={18} />}</span><span className="settings-row-copy"><strong>Reduce motion</strong><small>Limit interface transitions and movement.</small></span><button className={"toggle" + (reducedMotion ? " on" : "")} type="button" role="switch" aria-checked={reducedMotion} onClick={() => setReducedMotion(!reducedMotion)} aria-label="Reduce motion"><span /></button></div>
           </section>
           <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><HardDrive size={18} /></span><div><h2>Storage &amp; privacy</h2><p>Local outputs, no upload pipeline.</p></div></div><div className="setting-info"><span>Default archives folder</span><strong>{appInfo?.outputFolder ?? "Documents / SHIFT / Archives"}</strong></div><button className="button button-secondary full-width" type="button" onClick={openOutputFolder}><FolderOpen size={16} /> Open destination folder</button><div className="privacy-list"><div><CheckCircle2 size={16} /><span>Core ZIP operation works locally</span></div><div><CheckCircle2 size={16} /><span>No account or cloud upload required</span></div><div><CheckCircle2 size={16} /><span>History remains in this session</span></div></div></section>
-          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Activity size={18} /></span><div><h2>System status</h2><p>Dependency availability in this build.</p></div></div><div className="system-status-row"><span>Desktop bridge</span><strong className={isDesktop ? "system-ready" : "system-warn"}><i /> {isDesktop ? "Connected" : "Web preview only"}</strong></div><div className="system-status-row"><span>ZIP engine</span><strong className="system-ready"><i /> Rust · DEFLATE</strong></div><div className="system-status-row"><span>PDF engine</span><strong className="system-warn"><i /> Not connected</strong></div><div className="system-status-row"><span>Office conversion</span><strong className="system-warn"><i /> Not connected</strong></div><p className="settings-footnote">Statuses reflect integrations in this build, not guesses about installed software.</p></section>
+          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Activity size={18} /></span><div><h2>System status</h2><p>Dependency availability in this build.</p></div></div><div className="system-status-row"><span>Desktop bridge</span><strong className={isDesktop ? "system-ready" : "system-warn"}><i /> {isDesktop ? "Connected" : "Web preview only"}</strong></div><div className="system-status-row"><span>ZIP engine</span><strong className="system-ready"><i /> Rust · DEFLATE</strong></div><div className="system-status-row"><span>Image conversion</span><strong className="system-ready"><i /> Rust · 5 formats</strong></div><div className="system-status-row"><span>JPEG compression</span><strong className="system-ready"><i /> Quality 78</strong></div><div className="system-status-row"><span>PDF engine</span><strong className="system-warn"><i /> Not connected</strong></div><div className="system-status-row"><span>Audio / video</span><strong className="system-warn"><i /> Optional engine later</strong></div><p className="settings-footnote">Statuses reflect integrations in this build, not guesses about installed software.</p></section>
         </div>
       </div>}
 

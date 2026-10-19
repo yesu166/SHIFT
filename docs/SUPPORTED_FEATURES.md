@@ -1,23 +1,23 @@
 # Supported features
 
-The typed registry in src/lib/operations.ts is the single source of truth. Only ZIP creation is currently marked available.
+This page describes what is connected to the current SHIFT wheel—not a future wish list.
 
-| Feature | Inputs | Output | Status | Verification gate |
-|---|---|---|---|---|
-| Global activation key | F6–F12; F8 default | Shows the overlay near the pointer | IMPLEMENTED IN SOURCE | Verify registration and key conflict handling on Windows. |
-| Always-on-top wheel | Current desktop | Separate transparent native window | IMPLEMENTED IN SOURCE | Verify focus preservation and DPI/multi-monitor behavior. |
-| Drag a file to the ZIP action | Files/directories from Explorer | Validated DEFLATE ZIP | IMPLEMENTED IN SOURCE; MANUAL TEST REQUIRED | Verify native drop and OLE drag continuity on Windows. |
-| Tray-resident behavior | Close main app window | Hide main window; tray can reopen or quit | IMPLEMENTED IN SOURCE | Validate tray lifecycle and exit behavior. |
-| Compress files to ZIP | Files and directories | DEFLATE ZIP | IMPLEMENTED | CI engine tests and independent Windows extraction must pass before release. |
-| Optimize PDF | PDF | Optimized PDF | PLANNED | Real optimization engine, output parsing, actual byte comparison and source preservation. |
-| Merge PDFs | PDFs in selected order | PDF | PLANNED | Reopen output and verify page count/order. |
-| Split or extract pages | PDF and page selection | PDF file(s) | PLANNED | Validate ranges and output page structure. |
-| Rotate, reorder, remove pages | PDF and page options | PDF | PLANNED | Verify output page structure/orientation. |
-| DOCX/XLSX/PPTX to PDF | Office document | PDF | PLANNED | Optional engine detection and representative layout/fidelity tests. |
-| Page numbers/watermarks | PDF and settings | PDF | PLANNED | Real PDF writer and fidelity tests. |
-| PDF password protection/removal | PDF and the required password | Encrypted/decrypted PDF | PLANNED | Secure password flow plus successful output validation. |
-| ZIP extraction | ZIP | Files/folders | NOT_SUPPORTED | Implement path traversal, symlink, expansion size, count/depth and overwrite protections first. |
-| Cross-application drag-to-wheel | OS-originating drag | Action wheel | IMPLEMENTED IN SOURCE; MANUAL TEST REQUIRED | Validate Explorer drag continuity, focus preservation, and target hit-testing. |
-| Start at Windows sign-in | User session | Tray-resident app | NOT IMPLEMENTED | Add explicit opt-in sign-in startup support later. |
+| Feature | Inputs | Output | Status / note |
+|---|---|---|---|
+| Contextual drag wheel | File Explorer drag with Shift/Alt+Shift/Ctrl+Shift | Convert, tools or file actions | IMPLEMENTED IN SOURCE; needs hands-on Windows validation |
+| Convert images | PNG, JPG/JPEG, WebP, BMP, TIFF | PNG, JPG/JPEG, WebP, BMP, TIFF | BUILT-IN; target hidden if already present in the batch |
+| Compress JPEG | JPG/JPEG | Re-encoded JPG/JPEG at quality 78 | BUILT-IN; lossy; output size may increase |
+| Create ZIP | Files and folders | DEFLATE ZIP in Documents/SHIFT/Archives | BUILT-IN; archive is reopened and its regular entries read |
+| Copy paths | Dropped selection | Newline-separated local paths on clipboard | BUILT-IN; clipboard behavior needs manual Windows test |
+| Open output destination | Wheel action or result | Explorer opens the folder | BUILT-IN |
+| Tray-resident behavior | Close main window | Main window hides to tray; tray can reopen or quit | IMPLEMENTED IN SOURCE; lifecycle needs manual verification |
+| GIF animation | GIF input | Animated image conversion | NOT SUPPORTED by current built-in engine |
+| HEIC/HEIF/AVIF/SVG conversion | These source formats | Images | NOT SUPPORTED by current built-in engine |
+| Image metadata fidelity | Images with EXIF/ICC metadata | Same metadata copied verbatim | NOT GUARANTEED; output must be checked independently |
+| Audio/video conversion/compression | Media formats | Converted/compressed media | PLANNED; FFmpeg integration not connected |
+| PDF create/merge/split/optimize | PDF or supported source files | PDF files | PLANNED; no PDF engine connected |
+| DOCX/XLSX/PPTX conversion | Office files | PDF or other formats | PLANNED; optional engine not connected |
+| Password protection, watermarking, redaction | Documents and user options | Modified documents | PLANNED |
+| Start at Windows sign-in | Windows user session | Tray-resident app | NOT IMPLEMENTED |
 
-The browser preview cannot pass a browser File as a native path. ZIP processing requires the Tauri desktop shell and native paths.
+The browser preview cannot pass browser File objects as native filesystem paths. Native path operations require the Tauri desktop shell. Unsupported actions must stay out of the executable menu.

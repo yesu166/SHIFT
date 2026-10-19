@@ -116,3 +116,79 @@
 .shortcut-label { display: block; margin: 20px 0 7px; color: var(--muted); font-size: 10px; font-weight: 700; }
 .shortcut-select { width: 100%; min-height: 39px; border: 1px solid var(--line2); border-radius: 9px; padding: 0 11px; background: var(--raised); color: var(--ink); font-size: 11px; }
 @media (max-width: 900px) { .wheel-instructions-card { align-items: flex-start; flex-wrap: wrap; } .wheel-instructions-copy { flex-basis: calc(100% - 60px); } .wheel-instructions-card > .button { margin-left: 57px; } }
+
+
+/* Contextual wheel: circular actions and result feedback kept inside SHIFT's native window. */
+:root[data-wheel-overlay=true] .shift-wheel-root { padding: 10px; }
+:root[data-wheel-overlay=true] .shift-wheel-shell {
+  width: min(100%, 520px); height: min(100%, 520px); aspect-ratio: 1;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  box-shadow: 0 24px 68px #24170d3a, inset 0 0 0 8px color-mix(in srgb, var(--panel) 52%, transparent);
+}
+:root[data-wheel-overlay=true] .shift-wheel-center {
+  top: 50%; width: 43%; height: 43%; gap: 7px; padding: 15px;
+  background: color-mix(in srgb, var(--panel) 97%, transparent);
+  box-shadow: 0 12px 38px #21160d20;
+}
+:root[data-wheel-overlay=true] .shift-wheel-mark { width: 29px; height: 29px; border-radius: 9px; }
+:root[data-wheel-overlay=true] .wheel-mode-label {
+  color: var(--orange2); font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;
+}
+:root[data-wheel-overlay=true] .shift-wheel-center strong { font-size: 14px; line-height: 1.2; }
+:root[data-wheel-overlay=true] .shift-wheel-center small { font-size: 10px; line-height: 1.35; }
+:root[data-wheel-overlay=true] .shift-wheel-center .wheel-output-name {
+  max-width: 180px; overflow-wrap: anywhere; color: var(--ink); font-weight: 800;
+}
+:root[data-wheel-overlay=true] .shift-wheel-action {
+  width: 28%; min-width: 0; min-height: 81px; height: auto; aspect-ratio: 1.4;
+  padding: 8px 5px; gap: 4px; border-radius: 18px;
+  background: color-mix(in srgb, var(--panel) 97%, transparent);
+  border-color: var(--line2); box-shadow: 0 9px 24px #d45c241c;
+  cursor: copy; transform: translate(-50%, -50%);
+}
+:root[data-wheel-overlay=true] .shift-wheel-action:hover,
+:root[data-wheel-overlay=true] .shift-wheel-action.drop-highlight {
+  background: var(--tint); border-color: var(--orange);
+  transform: translate(-50%, -50%) scale(1.07);
+}
+:root[data-wheel-overlay=true] .shift-wheel-action-icon { width: 28px; height: 28px; border-radius: 9px; }
+:root[data-wheel-overlay=true] .shift-wheel-action strong {
+  font-size: 10px; line-height: 1.15; text-align: center; overflow-wrap: anywhere;
+}
+:root[data-wheel-overlay=true] .shift-wheel-action small {
+  font-size: 8px; letter-spacing: .15px; text-transform: none; text-align: center;
+}
+:root[data-wheel-overlay=true] .shift-wheel-foot { bottom: 3.5%; font-size: 8px; letter-spacing: .8px; }
+:root[data-wheel-overlay=true] .shift-wheel-close { right: 8%; top: 8%; }
+:root[data-wheel-overlay=true] .shift-wheel-no-actions {
+  position: absolute; z-index: 3; left: 50%; top: 76%; transform: translate(-50%, -50%);
+  width: 54%; display: flex; align-items: center; justify-content: center; gap: 7px;
+  color: var(--muted); font-size: 9px; line-height: 1.4; text-align: center; pointer-events: none;
+}
+:root[data-wheel-overlay=true] .shift-wheel-no-actions svg { flex: 0 0 auto; color: var(--orange2); }
+:root[data-wheel-overlay=true] .shift-wheel-notice {
+  bottom: 5%; transform: translate(-50%, 0); width: 78%; padding: 10px 12px;
+  font-size: 10px; z-index: 12;
+}
+:root[data-wheel-overlay=true] .shift-wheel-result {
+  left: 50%; bottom: 5%; transform: translate(-50%, 0); width: 78%;
+  align-items: center; gap: 7px; padding: 12px 13px; border-radius: 15px;
+  text-align: center; z-index: 10; background: var(--panel);
+}
+:root[data-wheel-overlay=true] .shift-wheel-result > span { max-width: 100%; overflow-wrap: anywhere; font-size: 10px; }
+:root[data-wheel-overlay=true] .shift-wheel-result > small { font-size: 9px; }
+:root[data-wheel-overlay=true] .shift-wheel-result button { justify-content: center; width: 100%; }
+:root[data-wheel-overlay=true] .shift-wheel-shell.has-result .shift-wheel-action { visibility: hidden; pointer-events: none; }
+:root[data-wheel-overlay=true] .shift-wheel-shell.has-result .shift-wheel-no-actions { display: none; }
+:root[data-wheel-overlay=true] .shift-wheel-shell.has-result .shift-wheel-foot { opacity: .3; }
+.gesture-shortcut-list { display: grid; gap: 11px; margin-top: 18px; }
+.gesture-shortcut-list > div { display: flex; align-items: flex-start; gap: 12px; }
+.gesture-shortcut-list kbd {
+  flex: 0 0 auto; min-width: 85px; display: inline-flex; justify-content: center; padding: 8px 9px;
+  border: 1px solid var(--line2); border-radius: 8px; background: var(--raised);
+  color: var(--ink); font: inherit; font-size: 10px; font-weight: 700;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--line2) 40%, transparent);
+}
+.gesture-shortcut-list span { display: grid; gap: 3px; }
+.gesture-shortcut-list strong { color: var(--ink); font-size: 11px; }
+.gesture-shortcut-list small { color: var(--muted); font-size: 10px; line-height: 1.5; }

@@ -1,21 +1,37 @@
 # Tangerine reference research
 
-Reference: https://www.tangerineformac.com/
+Primary product reference: https://tangerineformac.com/
+Additional public feature reference: https://www.tangerineformac.com/tools
+Windows community reference: https://github.com/CristianO2601/tangerine-windows
 
-## Observed
-- The user-supplied reference URL identifies the Tangerine for Mac website.
-- No website screenshots, live interaction tests, or source artifacts have been captured in this repository as of this review.
+## Publicly observable product behavior
 
-## Inferred
-- SHIFT's brief uses Tangerine as inspiration for a file-to-action flow and radial menu. This describes the target product direction, not verified details of Tangerine's implementation.
+The official product site describes an offline Mac file converter with a modifier-driven radial workflow: start dragging a file, press Shift for format conversion, Command for file tools, or Control for file actions. It says the wheel remains open until drop or cancel and describes arrow-key navigation with Enter and Escape. Its published format families include images, audio, video, PDF, documents, slides, spreadsheets, subtitles and archives. It also describes local processing, keeping originals, and a contextual menu that offers only relevant operations. Source: https://tangerineformac.com/
 
-## Unknown
-- Exact current drag/drop interaction, key handling, radial menu placement, supported operations and formats, destination behavior, cancellation, accessibility behavior, and system-integration implementation have not yet been verified.
-- Tangerine's private implementation is unknown; no reverse engineering has been performed.
+The official website publishes counts of 275 conversion paths, 26 file tools and 6 file actions. Those are Tangerine's published figures, not claims about SHIFT. Source: https://tangerineformac.com/
 
-## Research protocol
-1. Review publicly available website content and product demonstrations.
-2. Capture sources and dates for every claim.
-3. Separate direct observation from inference.
-4. Test the proposed Windows interaction independently. A global hotkey must not be treated as proof that the active drag payload is accessible.
-5. Do not copy proprietary assets, brand elements, or source code. SHIFT must use an original identity.
+An independent Windows community project describes a separate Windows implementation using Python/PySide6 plus public Win32 state and the OLE drag clipboard. It is not the original macOS app and carries an MIT license. Source: https://github.com/CristianO2601/tangerine-windows and https://github.com/CristianO2601/tangerine-windows/blob/main/LICENSE
+
+## SHIFT's interpretation
+
+SHIFT implements the underlying interaction pattern in its own Rust/Tauri architecture:
+- Shift -> image conversion
+- Alt+Shift -> JPEG compression or ZIP tools
+- Ctrl+Shift -> copy paths or open the output destination
+- outputs are written as new files and sources are preserved
+- a typed registry filters the wheel to operations compatible with selected extensions
+
+The first milestone deliberately has fewer engines than Tangerine. Built-in processing covers PNG/JPG/WebP/BMP/TIFF conversion, lossy JPEG re-encoding and validated ZIP creation. PDF, Office and audio/video processing remain unavailable until real local engines and output validation exist.
+
+## What is not known
+
+Tangerine's private source code and internal implementation are not established by the marketing website. This work uses public product behavior and a separately published Windows community project for architectural research; it does not claim access to the original private source code. SHIFT must not copy proprietary branding, artwork, site copy or assets.
+
+## Design and engineering principles for SHIFT
+
+1. Match the low-interruption workflow and contextual radial interaction, not Tangerine's brand or exact artwork.
+2. Keep SHIFT's own orange/ink palette, typography, labels and identity.
+3. Show only operations supported by selected file types and the engines actually present.
+4. Validate generated outputs and preserve originals.
+5. Keep core processing local and optional large engines unbundled until size, licenses and reliability are reviewed.
+6. Treat Explorer drag/drop, focus behavior, keyboard mode switching, DPI and multi-monitor behavior as manual Windows verification gates.

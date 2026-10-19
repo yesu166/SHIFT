@@ -2,47 +2,40 @@
 
 Last reviewed: 2026-10-19
 
-## Repository and environment
-- Repository: yesu166/SHIFT, default branch main; implementation branch feat/shift-windows-app.
-- The repository was empty before the documentation bootstrap.
-- The implementation is committed through the GitHub API. No local Windows desktop session is available here.
-- GitHub Actions has executed the initial CI run; it exposed a TypeScript parse error and Rust formatting differences. Those are being corrected, and a passing run is required before claiming tests pass.
-- No manual Windows desktop GUI test is claimed; the packaged installer must pass CI and then be tested interactively.
+## Architecture
+- React/TypeScript/Vite renders the main workspace and a separate transparent, always-on-top wheel.
+- Tauri 2 + Rust owns OS integration and processing. The packaged app does not need a separate HTTP service.
+- A Windows polling thread watches for a real mouse drag, movement and modifier combination from Explorer/Desktop. It shows the overlay without explicitly focusing it and emits the current wheel mode; Tauri native file-drop events deliver selected paths to the webview.
+- The central typed operation registry in src/lib/operations.ts filters actions by source extensions and mode.
 
 ## Feature status
 
 | Area | Status | Evidence / next action |
 |---|---|---|
-| React/Vite application source | IMPLEMENTED | Frontend source committed to the feature branch; rerun typecheck/lint/unit tests/build. |
-| Theme and reduced-motion settings | IMPLEMENTED | User settings affect CSS and persist in localStorage. |
-| Typed operation registry | IMPLEMENTED | src/lib/operations.ts is shared by workspace filtering and the quick-action wheel. |
-| Native overlay wheel and global shortcut | IMPLEMENTED IN SOURCE | Separate transparent always-on-top wheel window; F6–F12 configurable (F8 default); manual Windows GUI testing remains required. |
-| Native file picker and app-window drop | IMPLEMENTED | Uses the Tauri dialog API and typed webview drag/drop events; Windows runtime verification remains pending. |
-| ZIP creation engine | IMPLEMENTED | Rust source streams files using DEFLATE, writes a temporary output, validates entries, measures size, and avoids replacing existing archives. |
-| ZIP unit tests | TESTED | Prior Windows CI run passed all five core ZIP tests and Clippy. A Windows-only independent PowerShell `Expand-Archive` interoperability test has been added; its result is pending the current CI run. |
-| ZIP output validated with Windows Explorer | BLOCKED | Requires independent Windows-compatible extraction verification. |
-| Frontend typecheck/lint/test/build | PASS ON LATEST OVERLAY REVISION | Typecheck, lint, unit tests, production build and npm audit passed. See the latest GitHub Actions run for current native-build status. |
-| PDF operations | PLANNED | Evaluate qpdf and a PDF-writing engine, then add real-output tests. |
-| Office-to-PDF conversion | PLANNED | Detect optional LibreOffice and test document layout before enabling conversion. |
-| Cross-app drag-to-wheel | IMPLEMENTED IN SOURCE; MANUAL TEST REQUIRED | The separate overlay subscribes to Tauri's native drag/drop event and routes a drop on Compress to ZIP into the Rust ZIP engine. Verify Explorer drag continuity and focus behavior on Windows. |
-| Windows installer | CI / MANUAL VERIFICATION REQUIRED | CI attempts an unsigned Windows x64 NSIS package and uploads it as an artifact; install/uninstall behavior still needs an interactive Windows test. |
-| Lockfiles and full license inventory | IN_PROGRESS | package-lock.json and src-tauri/Cargo.lock are committed by CI (commit bc576c6); npm audit reported 0 vulnerabilities after upgrading Vitest. Complete transitive license/NOTICE audit remains outstanding. |
+| Contextual modifier-driven wheel | IMPLEMENTED IN SOURCE | Shift=convert, Alt+Shift=tools, Ctrl+Shift=file actions. Explorer drag, mode switching, focus and DPI require manual desktop verification. |
+| Operation registry | IMPLEMENTED | src/lib/operations.ts drives menu filtering and unit tests. |
+| ZIP creation | IMPLEMENTED IN SOURCE | Rust streams DEFLATE level 6 into temporary output, reads entries back, measures size and avoids overwrites. CI plus manual Explorer extraction verification required. |
+| Image conversion | IMPLEMENTED IN SOURCE | Rust image crate supports PNG/JPG/WebP/BMP/TIFF; temporary output is decoded again, then saved with a collision-safe name beside the original. |
+| JPEG compression | IMPLEMENTED IN SOURCE | Rust JPEG encoder quality 78; source preserved, output size may increase. |
+| Copy paths / open output location | IMPLEMENTED IN SOURCE | Clipboard bridge and native folder opening; manual tests required. |
+| Tray behavior | IMPLEMENTED IN SOURCE | Main window close hides to tray; quit menu exits. Validate lifecycle manually. |
+| PDF operations | PLANNED | No PDF engine connected. |
+| Office conversion | PLANNED | No Office engine connected. |
+| Audio/video conversion | PLANNED | No FFmpeg integration connected. |
+| Windows installer | CI / MANUAL VERIFICATION REQUIRED | Build in Windows CI; test install, launch, uninstall and data preservation interactively. |
+| Project license and dependency audit | IN PROGRESS | Review image crate and resolved transitive dependencies, include exact notices and choose SHIFT's own license before distribution. |
 
-## Implementation notes
-- create_zip executes on Tauri's blocking task pool.
-- Output directory is the user's Documents folder joined with SHIFT/Archives.
-- Output filenames use collision-safe numbered suffixes.
-- Browser preview does not treat browser File objects as native paths; ZIP execution is enabled only in Tauri with native paths.
-- Planned operations remain unavailable instead of producing fake outputs.
-- ZIP creation rejects overlapping selections; input folders and their child files cannot both be selected into one archive job.
+## Manual validation checklist
+1. Drag image(s) from Explorer, then tap Shift while holding the mouse button. Confirm the wheel appears at the cursor.
+2. Drag onto each format; verify output files are valid, source files unchanged and existing output names not overwritten.
+3. Hold Alt+Shift to see JPEG compression (JPEG selections only) or Create ZIP; inspect ZIP using Windows Explorer.
+4. Hold Ctrl+Shift and test Copy paths and Output folder.
+5. Drop outside the wheel, press Escape, and close the main window; confirm cancellation, tray reopen and quit behavior.
+6. Repeat at 100%, 150% and 200% display scaling and with multiple monitors.
+7. Verify behavior when the key combination conflicts with another application and when selection contains unsupported types.
 
-## Next executable tasks
-1. Pass the latest Windows Rust test, Clippy, and NSIS installer CI jobs.
-2. Verify Explorer drag/drop, focus preservation, Escape, tray close/quit, and DPI/multi-monitor behavior in a real Windows desktop session.
-3. Independently extract generated ZIP output on Windows and verify bytes/content.
-4. Test first launch and uninstall behavior while preserving user archives.
-5. Evaluate PDF and LibreOffice integrations after the ZIP workflow passes.
-
-
-## Security follow-up
-The initial dependency audit identified three npm advisories in the Vitest 3 resolution (one moderate and two critical, involving @vitest/mocker and tinypool). The declared Vitest range was upgraded to ^5.0.5; the latest frontend audit reports 0 vulnerabilities and CI fails if a later npm audit reports any advisory.
+## Known boundaries
+- The drag monitor is restricted to common Explorer/Desktop window classes; arbitrary application-to-application drags are not promised yet.
+- The current image engine does not promise animated image conversion, HEIC/AVIF/SVG input or metadata fidelity.
+- ZIP archiving is a container/bundling operation, not a promise to shrink every file. The UI displays measured byte differences.
+- Audio/video, PDF and Office conversions are not implemented. The wheel must not expose fake actions for them.

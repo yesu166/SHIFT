@@ -1,8 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { AlertCircle, Archive, CheckCircle2, Command, FolderOpen, X } from "lucide-react";
+import {
+  Archive, ArrowRightLeft, CheckCircle2, Clipboard, FileImage, FolderOpen,
+  ImageDown, Layers, X, Zap,
+} from "lucide-react";
 import { formatBytes } from "../lib/format";
+import { getRadialPosition } from "../lib/radial";
+import { getWheelOperations } from "../lib/operations";
+
+type WheelMode = "convert" | "tools" | "actions";
+type ImageFormat = "png" | "jpg" | "webp" | "bmp" | "tiff";
 
 interface ZipResult {
   outputPath: string;
@@ -11,14 +20,63 @@ interface ZipResult {
   bytesSaved: number;
   filesArchived: number;
 }
-
-interface PhysicalPoint {
-  x: number;
-  y: number;
+interface ImageResult {
+  inputPath: string;
+  outputPath: string;
+  inputBytes: number;
+  outputBytes: number;
+  bytesSaved: number;
 }
+interface WheelAction {
+  id: string;
+  title: string;
+  detail: string;
+  kind: "convert" | "compress" | "archive" | "copy" | "folder";
+  target?: ImageFormat;
+}
+interface JobSummary {
+  title: string;
+  outputs: string[];
+  inputBytes: number;
+  outputBytes: number;
+  detail: string;
+}
+interface PhysicalPoint { x: number; y: number }
 
-function leafName(path: string): string {
-  return path.split(/[\\/]/).pop() || path;
+function leafName(path: string): string { return path.split(/[\\/]/).pop() || path; }
+function titleForMode(mode: WheelMode): string {
+  return mode === "convert" ? "Convert" : mode === "tools" ? "Tools" : "File actions";
+}
+function hintForMode(mode: WheelMode): string {
+  return mode === "convert" ? "SHIFT · CONVERT" : mode === "tools" ? "ALT + SHIFT · TOOLS" : "CTRL + SHIFT · ACTIONS";
+}
+function iconFor(action: WheelAction) {
+  if (action.kind === "archive") return Archive;
+  if (action.kind === "compress") return ImageDown;
+  if (action.kind === "copy") return Clipboard;
+  if (action.kind === "folder") return FolderOpen;
+  if (action.kind === "convert") return FileImage;
+  return ArrowRightLeft;
+}
+function buildActions(paths: string[], mode: WheelMode): WheelAction[] {
+  return getWheelOperations(paths.map(leafName), mode).map((operation) => {
+    const id = operation.id;
+    const target = operation.targetFormat;
+    const kind: WheelAction["kind"] = id.startsWith("convert-") ? "convert"
+      : id === "compress-jpeg" ? "compress"
+      : id === "create-zip" ? "archive"
+      : id === "copy-paths" ? "copy" : "folder";
+    return {
+      id,
+      title: target ? target.toUpperCase() : operation.title,
+      detail: id === "compress-jpeg" ? "Quality 78"
+        : id === "create-zip" ? "Bundle files"
+        : id === "copy-paths" ? "To clipboard"
+        : id === "open-folder" ? "Open destination" : "Convert format",
+      kind,
+      ...(target ? { target: target as ImageFormat } : {}),
+    };
+  });
 }
 
 function operationAt(position: PhysicalPoint): string | null {
@@ -28,41 +86,109 @@ function operationAt(position: PhysicalPoint): string | null {
 }
 
 export default function WheelOverlay() {
-  const [activationKey, setActivationKey] = useState("F8");
+  const [mode, setMode] = useState<WheelMode>("convert");
   const [dragPaths, setDragPaths] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [isOverZip, setIsOverZip] = useState(false);
+  const [hoveredAction, setHoveredAction] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<ZipResult | null>(null);
+  const [summary, setSummary] = useState<JobSummary | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const busyRef = useRef(false);
+  const handledDropRef = useRef(false);
+  const modeRef = useRef<WheelMode>("convert");
+  const actions = useMemo(() => buildActions(dragPaths, mode), [dragPaths, mode]);
+
+  useEffect(() => { busyRef.current = busy; }, [busy]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
 
   const hide = useCallback(async () => {
-    try { await invoke("hide_wheel_overlay"); } catch { /* App may be shutting down. */ }
+    try { await invoke("hide_wheel_overlay"); } catch { /* App may already be closing. */ }
   }, []);
 
-  const runZip = useCallback(async (paths: string[]) => {
-    if (busy || paths.length === 0) return;
+  const executeAction = useCallback(async (actionId: string, paths: string[]) => {
+    if (!paths.length) {
+      setNotice("Start dragging a file from File Explorer first.");
+      return;
+    }
+    if (busyRef.current) return;
+    const action = buildActions(paths, modeRef.current).find((item) => item.id === actionId);
+    if (!action) {
+      setNotice("That action is not available for this selection.");
+      return;
+    }
+
+    busyRef.current = true;
     setBusy(true);
     setNotice(null);
-    setResult(null);
+    setSummary(null);
     try {
-      const output = await invoke<ZipResult>("create_zip", { inputs: paths, archiveName: null });
-      setResult(output);
-      setDragPaths([]);
+      if (action.kind === "archive") {
+        const output = await invoke<ZipResult>("create_zip", { inputs: paths, archiveName: null });
+        setSummary({
+          title: "ZIP verified",
+          outputs: [output.outputPath],
+          inputBytes: output.inputBytes,
+          outputBytes: output.archiveBytes,
+          detail: output.filesArchived + " archive entries",
+        });
+      } else if (action.kind === "convert" && action.target) {
+        const results = await invoke<ImageResult[]>("convert_images_to_format", {
+          inputs: paths,
+          targetFormat: action.target,
+        });
+        setSummary({
+          title: "Conversion complete",
+          outputs: results.map((result) => result.outputPath),
+          inputBytes: results.reduce((sum, result) => sum + result.inputBytes, 0),
+          outputBytes: results.reduce((sum, result) => sum + result.outputBytes, 0),
+          detail: results.length + " image" + (results.length === 1 ? "" : "s") + " converted to " + action.target.toUpperCase(),
+        });
+      } else if (action.kind === "compress") {
+        const results = await invoke<ImageResult[]>("compress_jpeg_images", { inputs: paths });
+        setSummary({
+          title: "Compression complete",
+          outputs: results.map((result) => result.outputPath),
+          inputBytes: results.reduce((sum, result) => sum + result.inputBytes, 0),
+          outputBytes: results.reduce((sum, result) => sum + result.outputBytes, 0),
+          detail: results.length + " JPEG image" + (results.length === 1 ? "" : "s") + " re-encoded",
+        });
+      } else if (action.kind === "copy") {
+        await navigator.clipboard.writeText(paths.join("\r\n"));
+        setSummary({ title: "Paths copied", outputs: [], inputBytes: 0, outputBytes: 0, detail: paths.length + " local path" + (paths.length === 1 ? "" : "s") + " copied" });
+      } else if (action.kind === "folder") {
+        await invoke("open_output_folder");
+        setSummary({ title: "Output folder opened", outputs: [], inputBytes: 0, outputBytes: 0, detail: "SHIFT's local destination folder" });
+      }
     } catch (error) {
-      setNotice("ZIP failed: " + String(error));
+      setNotice(String(error));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
-  }, [busy]);
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = localStorage.getItem("shift.theme") === "dark" ? "dark" : "light";
     document.documentElement.dataset.reducedMotion = localStorage.getItem("shift.reducedMotion") === "true" ? "true" : "false";
-    let active = true;
-    void invoke<string>("get_wheel_shortcut").then((key) => { if (active) setActivationKey(key); }).catch(() => {});
-    return () => { active = false; };
-  }, []);
+
+    let cancelled = false;
+    const unlisteners: (() => void)[] = [];
+    void listen<string>("wheel-mode", (event) => {
+      const nextMode = event.payload;
+      if (nextMode === "convert" || nextMode === "tools" || nextMode === "actions") {
+        modeRef.current = nextMode;
+        setMode(nextMode);
+        handledDropRef.current = false;
+        setSummary(null);
+        setNotice(null);
+      }
+    }).then((stop) => { if (cancelled) stop(); else unlisteners.push(stop); }).catch(() => {});
+    void listen("wheel-gesture-end", () => {
+      // Give the WebView's native drop event time to start the operation before closing.
+      window.setTimeout(() => { if (!busyRef.current) void hide(); }, 260);
+    }).then((stop) => { if (cancelled) stop(); else unlisteners.push(stop); }).catch(() => {});
+    return () => { cancelled = true; unlisteners.forEach((stop) => stop()); };
+  }, [hide]);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,34 +196,34 @@ export default function WheelOverlay() {
     void getCurrentWebview().onDragDropEvent((event) => {
       if (event.payload.type === "enter") {
         setDragPaths(event.payload.paths);
+        handledDropRef.current = false;
         setNotice(null);
-        setResult(null);
+        setSummary(null);
         setIsDragging(true);
-        setIsOverZip(operationAt(event.payload.position) === "create-zip");
+        setHoveredAction(operationAt(event.payload.position));
       } else if (event.payload.type === "over") {
         setIsDragging(true);
-        setIsOverZip(operationAt(event.payload.position) === "create-zip");
+        setHoveredAction(operationAt(event.payload.position));
       } else if (event.payload.type === "leave") {
         setIsDragging(false);
-        setIsOverZip(false);
+        setHoveredAction(null);
       } else if (event.payload.type === "drop") {
         const paths = event.payload.paths;
-        const target = operationAt(event.payload.position);
+        const actionId = operationAt(event.payload.position);
         setDragPaths(paths);
         setIsDragging(false);
-        setIsOverZip(false);
-        if (target !== "create-zip") {
-          setNotice("Drop the file onto the orange “Compress to ZIP” action.");
+        setHoveredAction(null);
+        if (!actionId) {
+          setNotice("Drop on one of the round actions to run it.");
           return;
         }
-        void runZip(paths);
+        handledDropRef.current = true;
+        void executeAction(actionId, paths);
       }
-    }).then((stop) => {
-      if (cancelled) stop();
-      else unlisten = stop;
-    }).catch((error: unknown) => setNotice("Windows file-drop support could not start: " + String(error)));
+    }).then((stop) => { if (cancelled) stop(); else unlisten = stop; })
+      .catch((error: unknown) => setNotice("Windows drag-and-drop support could not start: " + String(error)));
     return () => { cancelled = true; unlisten?.(); };
-  }, [runZip]);
+  }, [executeAction]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -110,63 +236,77 @@ export default function WheelOverlay() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [hide]);
 
-  const openFolder = useCallback(async () => {
-    try { await invoke("open_output_folder"); }
-    catch (error) { setNotice("Could not open the archive folder: " + String(error)); }
-  }, []);
+  const actionHint = !dragPaths.length
+    ? "Drag a file, then press a modifier"
+    : actions.length
+      ? "Drop the file on an action"
+      : mode === "convert"
+        ? "No image conversion for this file type yet"
+        : "No matching actions for this selection";
 
   return (
-    <main className="shift-wheel-root" aria-label="SHIFT floating file wheel">
-      <div className={"shift-wheel-shell" + (isDragging ? " is-dragging" : "") + (isOverZip ? " is-over-zip" : "")}>
+    <main className="shift-wheel-root" aria-label="SHIFT contextual file wheel">
+      <div className={"shift-wheel-shell" + (isDragging ? " is-dragging" : "") + (hoveredAction ? " is-over-zip" : "") + (summary ? " has-result" : "")}>
         <div className="shift-wheel-orbit" aria-hidden="true" />
         <div className="shift-wheel-center">
           <span className="shift-wheel-mark"><span /></span>
-          {result ? (
+          {summary ? (
             <>
-              <strong><CheckCircle2 size={17} /> ZIP ready</strong>
-              <small>{formatBytes(result.archiveBytes)} · {result.filesArchived} entries</small>
+              <strong><CheckCircle2 size={17} /> {summary.title}</strong>
+              <small>{summary.detail}</small>
+              {summary.outputs.length > 0 && <small className="wheel-output-name">{leafName(summary.outputs[0])}{summary.outputs.length > 1 ? " +" + (summary.outputs.length - 1) + " more" : ""}</small>}
+              {summary.outputs.length > 0 && <small>{formatBytes(summary.inputBytes)} → {formatBytes(summary.outputBytes)}</small>}
             </>
           ) : busy ? (
             <>
               <span className="shift-wheel-spinner" />
-              <strong>Creating ZIP…</strong>
-              <small>Validating every entry</small>
-            </>
-          ) : isDragging ? (
-            <>
-              <strong>Drop to compress</strong>
-              <small>{dragPaths.length === 1 ? leafName(dragPaths[0]) : dragPaths.length + " items selected"}</small>
+              <strong>Working locally…</strong>
+              <small>Original files are kept intact</small>
             </>
           ) : (
             <>
-              <strong>SHIFT wheel</strong>
-              <small>Drag a file here</small>
+              <span className="wheel-mode-label">{titleForMode(mode)}</span>
+              <strong>{isDragging ? "Drop to run" : "SHIFT"}</strong>
+              <small>{isDragging ? dragPaths.length + " file" + (dragPaths.length === 1 ? "" : "s") + " detected" : actionHint}</small>
             </>
           )}
         </div>
-        <button
-          type="button"
-          className={"shift-wheel-action" + (isOverZip ? " drop-highlight" : "")}
-          data-operation="create-zip"
-          aria-label="Compress dropped files to ZIP"
-          onClick={() => setNotice("Drag a file from Explorer and drop it on this action.")}
-          disabled={busy}
-        >
-          <span className="shift-wheel-action-icon"><Archive size={23} /></span>
-          <strong>Compress to ZIP</strong>
-          <small>{isOverZip ? "RELEASE TO START" : "DROP FILES HERE"}</small>
-        </button>
-        <button className="shift-wheel-close" type="button" onClick={() => void hide()} aria-label="Close SHIFT wheel">
-          <X size={15} />
-        </button>
-        <div className="shift-wheel-foot"><Command size={13} /> HOLD {activationKey} · ESC TO CLOSE</div>
-        {notice && <div className="shift-wheel-notice" role="status"><AlertCircle size={15} /><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message"><X size={13} /></button></div>}
-        {result && <div className="shift-wheel-result" role="status">
-          <strong><CheckCircle2 size={15} /> Archive verified</strong>
-          <span>{leafName(result.outputPath)}</span>
-          <small>{formatBytes(result.inputBytes)} → {formatBytes(result.archiveBytes)}</small>
-          <button type="button" onClick={() => void openFolder()}><FolderOpen size={14} /> Show output folder</button>
-        </div>}
+        {!summary && actions.map((action, index) => {
+          const point = getRadialPosition(index, actions.length, 37);
+          const Icon = iconFor(action);
+          return (
+            <button
+              key={action.id}
+              type="button"
+              className={"shift-wheel-action" + (hoveredAction === action.id ? " drop-highlight" : "")}
+              data-operation={action.id}
+              aria-label={action.title}
+              title={action.detail}
+              style={{ left: point.x + "%", top: point.y + "%" }}
+              onClick={() => void executeAction(action.id, dragPaths)}
+              disabled={busy}
+            >
+              <span className="shift-wheel-action-icon"><Icon size={20} /></span>
+              <strong>{action.title}</strong>
+              <small>{action.detail}</small>
+            </button>
+          );
+        })}
+        {!actions.length && !summary && !busy && (
+          <div className="shift-wheel-no-actions"><Layers size={15} /><span>{actionHint}</span></div>
+        )}
+        <button className="shift-wheel-close" type="button" onClick={() => void hide()} aria-label="Close SHIFT wheel"><X size={15} /></button>
+        <div className="shift-wheel-foot"><Zap size={12} /> {hintForMode(mode)} · ESC TO CLOSE</div>
+        {notice && <div className="shift-wheel-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message"><X size={13} /></button></div>}
+        {summary && (
+          <div className="shift-wheel-result" role="status">
+            <strong><CheckCircle2 size={15} /> Finished safely</strong>
+            <span>{summary.outputs[0] ? leafName(summary.outputs[0]) : summary.detail}</span>
+            <small>{summary.detail}</small>
+            {summary.outputs.length > 0 && <button type="button" onClick={() => summary.outputs[0] ? void invoke("open_output_parent", { path: summary.outputs[0] }) : void invoke("open_output_folder")}><FolderOpen size={14} /> Show output location</button>}
+            <button type="button" onClick={() => { handledDropRef.current = false; setSummary(null); setNotice(null); }}>Back to wheel</button>
+          </div>
+        )}
       </div>
     </main>
   );

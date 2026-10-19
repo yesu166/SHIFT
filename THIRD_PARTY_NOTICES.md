@@ -10,6 +10,7 @@ This is a provisional inventory of selected direct dependencies. It is not a com
 | Tauri 2 / Tauri API / dialog plugin | Desktop shell and native file selection | https://github.com/tauri-apps/tauri — inspect exact package/crate licenses | Lock versions and include notices |
 | Lucide React | Icon components | https://github.com/lucide-icons/lucide — ISC | Lock version and retain license/attribution |
 | Rust zip crate 8.6.0 | ZIP creation and read-back | https://github.com/zip-rs/zip2 — MIT | Pinned requirement; verify downloaded license and transitive packages |
+| image crate | Image format decoding/encoding for JPEG, PNG, WebP, BMP and TIFF | https://github.com/image-rs/image — MIT OR Apache-2.0; verify exact resolved release and included notices | Direct dependency; feature-gated codecs |
 | walkdir | Directory traversal | https://github.com/BurntSushi/walkdir | Verify exact resolved crate license |
 | tempfile | Temporary archive files | https://github.com/Stebalien/tempfile | Verify exact resolved crate license |
 | open | Open destination folder | https://github.com/Byron/open-rs | Verify exact resolved crate license |

@@ -1,27 +1,39 @@
 # Engine matrix
 
-Engine selection depends on actual capability, exact version, license, notices, provenance, security behavior and redistributable footprint. Items marked planned are not connected to the UI.
+Engine selection depends on actual capability, version, license, notices, security behavior, output validation and redistributed footprint. Only items marked implemented below are connected to the wheel.
 
-| Purpose | Engine | Version / source | License and packaging | Status |
-|---|---|---|---|---|
-| ZIP creation and read-back validation | Rust zip crate | Cargo.toml pins 8.6.0; https://github.com/zip-rs/zip2 | Upstream identifies MIT; exact crate notice and transitive dependencies still require review | IMPLEMENTED in source; CI results pending |
-| Directory traversal | walkdir | Cargo.toml constraint 2.5.0; https://github.com/BurntSushi/walkdir | Resolve and audit the exact lockfile version | IMPLEMENTED in source |
-| Temporary output | tempfile | Cargo.toml constraint 3.27.0; https://github.com/Stebalien/tempfile | Resolve and audit exact crate/license | IMPLEMENTED in source |
-| Open output folder | open | Cargo.toml constraint 5.3.2; https://github.com/Byron/open-rs | Resolve and audit exact crate/license | IMPLEMENTED in source |
-| PDF structural operations | qpdf | https://github.com/qpdf/qpdf and https://qpdf.readthedocs.io/ | Upstream identifies Apache-2.0; verify chosen release and notices | PLANNED |
-| PDF rendering | PDFium or alternative | https://pdfium.googlesource.com/pdfium.git | Verify build provenance, license/NOTICE, architecture and redistribution terms | PLANNED |
-| Office-to-PDF conversion | LibreOffice | https://www.libreoffice.org/licenses/ | Detect a user-installed dependency first; no silent installation; review redistribution before bundling | PLANNED |
-| PDF watermarks/page numbers | To be selected | — | Requires a verified PDF-writing API, not only a renderer | PLANNED |
+| Purpose | Engine | Input / output | Status |
+|---|---|---|---|
+| Image conversion | Rust image crate with JPEG, PNG, WebP, BMP and TIFF features | PNG/JPG/JPEG/WebP/BMP/TIFF to a different supported image format | IMPLEMENTED IN SOURCE; CI REQUIRED |
+| JPEG compression | Rust image JPEG encoder | JPG/JPEG to a new JPG at quality 78 | IMPLEMENTED IN SOURCE; CI REQUIRED |
+| ZIP archive creation and read-back validation | Rust zip crate, pinned 8.6.0 | Files/folders to DEFLATE ZIP; read back every regular entry | IMPLEMENTED IN SOURCE |
+| Directory traversal | walkdir | Folder recursion with symlink traversal disabled | IMPLEMENTED IN SOURCE |
+| Temporary outputs | tempfile | Staging before finalization | IMPLEMENTED IN SOURCE |
+| Copy file paths | WebView clipboard API | Selected native paths to text | IMPLEMENTED IN SOURCE; MANUAL TEST REQUIRED |
+| Open output location | Rust open crate | Open a generated output's parent folder | IMPLEMENTED IN SOURCE |
+| Audio/video conversion and compression | Optional FFmpeg integration | Common media formats | PLANNED; NOT CONNECTED |
+| PDF render/create/edit | PDF engine to be selected | Image-to-PDF, merge, split, optimize, watermark, protect | PLANNED; NOT CONNECTED |
+| Office conversion | Optional LibreOffice or another reviewed engine | DOCX/XLSX/PPTX conversion | PLANNED; NOT CONNECTED |
 
-## ZIP implementation details
-- DEFLATE compression at level 6.
-- Streams source bytes instead of loading entire files into memory.
-- Files, nested directories and empty directory entries.
-- Rejects selected symbolic-link roots and skips symbolic links found during folder traversal.
-- Rejects overlapping selections and duplicate archive entry names.
-- Limits selection to 1,000 root paths and 100,000 archive entries.
-- Uses a temporary file in the output directory; reparses the archive and reads all regular entries before finalization.
-- Measures actual input/output bytes; the archive can be larger than the inputs.
-- Does not intentionally overwrite an existing output.
+## Image engine details
 
-Windows CI now includes an independent `Expand-Archive` extraction test with a Unicode filename and byte-for-byte content verification. Windows Explorer GUI verification, ZIP64 stress tests, and large-file stress tests remain release gates.
+- Source formats accepted by built-in image operations: PNG, JPG/JPEG, WebP, BMP and TIFF.
+- Destination formats: PNG, JPG/JPEG, WebP, BMP and TIFF.
+- The wheel removes a target choice if any source in the current selection is already in that target format, avoiding silent no-op batch items.
+- Each conversion is written to a temporary sibling file, decoded again for validation, then saved under a new collision-safe name.
+- JPEG compression is a lossy quality-78 re-encode. It may make a small image larger; report measured size rather than promise a reduction.
+- Full metadata preservation, animation/GIF support, HEIC/AVIF/SVG input and ICC-profile fidelity are not promised by this engine.
+
+## ZIP engine details
+
+- DEFLATE compression at level 6; stream bytes rather than loading all source files into memory.
+- Supports files, nested folders and empty directory entries.
+- Rejects selected symbolic-link roots, skips symbolic links inside selected folders, and rejects overlapping selections or duplicate archive paths.
+- Limits selection to 1,000 root paths and 100,000 entries.
+- Reopens the temporary archive and reads each regular entry before finalization.
+- Measures input/output size honestly; ZIP may be larger than the original data.
+- Independent extraction, large-file stress and Windows Explorer drag-drop tests remain release gates.
+
+## External dependency policy
+
+Do not bundle large command-line engines simply to claim format coverage. Prefer feature detection, clear availability status, safe argument passing rather than shell-string concatenation, local output validation, explicit licensing/notice review and a measurable installer-size budget. If an external engine is absent, its menu items should be unavailable with a clear explanation.

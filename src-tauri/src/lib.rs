@@ -1,78 +1,20 @@
 mod zip_service;
+mod conversion_service;
 
+use conversion_service::{compress_jpeg_images as engine_compress_jpeg_images, convert_images as engine_convert_images, ImageOperationResult};
 use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     webview::WebviewWindowBuilder,
-    AppHandle, Manager, PhysicalPosition, Position, State, WebviewUrl, WebviewWindow,
+    AppHandle, Emitter, Manager, PhysicalPosition, Position, WebviewUrl, WebviewWindow,
 };
 use tauri_plugin_global_shortcut::{
     Code, GlobalShortcutExt, Shortcut, ShortcutState,
 };
 use zip_service::{create_zip_in_dir, ZipResult};
-
-const DEFAULT_WHEEL_KEY: &str = "F8";
-const WHEEL_WINDOW_LABEL: &str = "wheel";
-const WHEEL_WINDOW_SIZE: f64 = 520.0;
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AppInfo {
-    output_folder: String,
-    app_version: String,
-}
-
-struct WheelShortcutState(Mutex<String>);
-
-fn shortcut_for_key(key: &str) -> Result<Shortcut, String> {
-    let code = match key {
-        "F6" => Code::F6,
-        "F7" => Code::F7,
-        "F8" => Code::F8,
-        "F9" => Code::F9,
-        "F10" => Code::F10,
-        "F11" => Code::F11,
-        "F12" => Code::F12,
-        _ => return Err("Choose one of the supported function keys F6–F12.".to_string()),
-    };
-    Ok(Shortcut::new(None, code))
-}
-
-fn shortcut_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let config_dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|error| format!("Could not resolve the SHIFT settings folder: {error}"))?;
-    Ok(config_dir.join("wheel-shortcut.txt"))
-}
-
-fn load_saved_shortcut(app: &AppHandle) -> String {
-    let saved = shortcut_settings_path(app)
-        .ok()
-        .and_then(|path| fs::read_to_string(path).ok())
-        .map(|value| value.trim().to_uppercase())
-        .unwrap_or_default();
-    if shortcut_for_key(&saved).is_ok() {
-        saved
-    } else {
-        DEFAULT_WHEEL_KEY.to_string()
-    }
-}
-
-fn save_shortcut(app: &AppHandle, key: &str) -> Result<(), String> {
-    let path = shortcut_settings_path(app)?;
-    let parent = path
-        .parent()
-        .ok_or_else(|| "The SHIFT settings path is invalid.".to_string())?;
-    fs::create_dir_all(parent)
-        .map_err(|error| format!("Could not create the SHIFT settings folder: {error}"))?;
-    fs::write(path, key)
-        .map_err(|error| format!("Could not save the wheel shortcut: {error}"))
-}
 
 fn system_cursor_position() -> Option<(i32, i32)> {
     #[cfg(target_os = "windows")]
@@ -132,7 +74,7 @@ fn escape_shortcut() -> Shortcut {
     Shortcut::new(None, Code::Escape)
 }
 
-fn show_wheel_window(app: &AppHandle) -> Result<(), String> {
+fn show_wheel_window(app: &AppHandle, mode: &str) -> Result<(), String> {
     let window = app
         .get_webview_window(WHEEL_WINDOW_LABEL)
         .ok_or_else(|| "The SHIFT wheel window is not available.".to_string())?;
@@ -140,8 +82,9 @@ fn show_wheel_window(app: &AppHandle) -> Result<(), String> {
     window
         .show()
         .map_err(|error| format!("Could not show the SHIFT wheel: {error}"))?;
-    // Escape is registered only while the overlay is visible, so it doesn't affect normal work.
+    // Keep the drag source focused while the contextual wheel is shown.
     let _ = app.global_shortcut().register(escape_shortcut());
+    app.emit("wheel-mode", mode.to_string()).map_err(|error| format!("Could not update wheel mode: {error}"))?;
     Ok(())
 }
 
@@ -191,6 +134,23 @@ async fn create_zip(
 }
 
 #[tauri::command]
+async fn convert_images_to_format(
+    inputs: Vec<String>,
+    target_format: String,
+) -> Result<Vec<ImageOperationResult>, String> {
+    tauri::async_runtime::spawn_blocking(move || engine_convert_images(&inputs, &target_format))
+        .await
+        .map_err(|error| format!("The image conversion worker stopped unexpectedly: {error}"))?
+}
+
+#[tauri::command]
+async fn compress_jpeg_images(inputs: Vec<String>) -> Result<Vec<ImageOperationResult>, String> {
+    tauri::async_runtime::spawn_blocking(move || engine_compress_jpeg_images(&inputs))
+        .await
+        .map_err(|error| format!("The JPEG compression worker stopped unexpectedly: {error}"))?
+}
+
+#[tauri::command]
 fn open_output_folder(app: AppHandle) -> Result<(), String> {
     let output_dir = archives_directory(&app)?;
     fs::create_dir_all(&output_dir)
@@ -200,8 +160,21 @@ fn open_output_folder(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn open_output_parent(path: String) -> Result<(), String> {
+    let file = fs::canonicalize(&path)
+        .map_err(|error| format!("Could not resolve the output file {}: {error}", path))?;
+    if !file.is_file() {
+        return Err("The requested output path is not a file.".to_string());
+    }
+    let parent = file.parent()
+        .ok_or_else(|| "The output file has no parent folder.".to_string())?;
+    open::that(parent)
+        .map_err(|error| format!("Could not open the output folder: {error}"))
+}
+
+#[tauri::command]
 fn show_wheel_overlay(app: AppHandle) -> Result<(), String> {
-    show_wheel_window(&app)
+    show_wheel_window(&app, "tools")
 }
 
 #[tauri::command]
@@ -209,60 +182,99 @@ fn hide_wheel_overlay(app: AppHandle) -> Result<(), String> {
     hide_wheel_window(&app)
 }
 
-#[tauri::command]
-fn get_wheel_shortcut(state: State<'_, WheelShortcutState>) -> Result<String, String> {
-    state
-        .0
-        .lock()
-        .map(|key| key.clone())
-        .map_err(|_| "The wheel shortcut settings lock is unavailable.".to_string())
+#[cfg(target_os = "windows")]
+fn start_drag_monitor(app: AppHandle) {
+    use std::{thread, time::Duration};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetAsyncKeyState, GetClassNameW, GetCursorPos, GetForegroundWindow,
+    };
+
+    const VK_LBUTTON: i32 = 0x01;
+    const VK_SHIFT: i32 = 0x10;
+    const VK_CONTROL: i32 = 0x11;
+    const VK_MENU: i32 = 0x12;
+    let is_down = |key: i32| unsafe { (GetAsyncKeyState(key) as u16 & 0x8000) != 0 };
+    let mut mouse_down = false;
+    let mut release_samples = 0_u8;
+    let mut anchor = (0_i32, 0_i32);
+    let mut gesture_active = false;
+    let mut active_mode = String::new();
+
+    thread::spawn(move || loop {
+        let left_down = is_down(VK_LBUTTON);
+        if left_down {
+            release_samples = 0;
+            let mut point = windows_sys::Win32::Foundation::POINT { x: 0, y: 0 };
+            if unsafe { GetCursorPos(&mut point) } != 0 {
+                if !mouse_down {
+                    anchor = (point.x, point.y);
+                    mouse_down = true;
+                }
+                let moved = (point.x - anchor.0).abs() + (point.y - anchor.1).abs() >= 9;
+                let shift = is_down(VK_SHIFT);
+                let control = is_down(VK_CONTROL);
+                let alt = is_down(VK_MENU);
+                let requested_mode = if shift {
+                    Some(if control { "actions" } else if alt { "tools" } else { "convert" })
+                } else {
+                    None
+                };
+
+                if moved && !gesture_active && requested_mode.is_some() {
+                    let hwnd = unsafe { GetForegroundWindow() };
+                    if !hwnd.is_null() {
+                        let mut class_name = [0_u16; 256];
+                        let length = unsafe { GetClassNameW(hwnd, class_name.as_mut_ptr(), class_name.len() as i32) };
+                        let class = String::from_utf16_lossy(&class_name[..length.max(0) as usize]);
+                        let explorer_source = matches!(
+                            class.as_str(),
+                            "CabinetWClass" | "ExploreWClass" | "Progman" | "WorkerW"
+                                | "Shell_TrayWnd" | "XamlExplorerHostIslandWindow"
+                        );
+                        if explorer_source {
+                            let mode = requested_mode.unwrap();
+                            if show_wheel_window(&app, mode).is_ok() {
+                                gesture_active = true;
+                                active_mode = mode.to_string();
+                            }
+                        }
+                    }
+                } else if gesture_active {
+                    if let Some(mode) = requested_mode {
+                        if mode != active_mode {
+                            let _ = app.emit("wheel-mode", mode.to_string());
+                            active_mode = mode.to_string();
+                        }
+                    }
+                }
+            }
+        } else if mouse_down {
+            release_samples = release_samples.saturating_add(1);
+            // Explorer can briefly report the button up during OLE drag processing.
+            if release_samples >= 4 {
+                mouse_down = false;
+                if gesture_active {
+                    let _ = app.emit("wheel-gesture-end", ());
+                }
+                gesture_active = false;
+                active_mode.clear();
+                anchor = (0, 0);
+            }
+        }
+        thread::sleep(Duration::from_millis(16));
+    });
 }
 
-#[tauri::command]
-fn set_wheel_shortcut(
-    app: AppHandle,
-    state: State<'_, WheelShortcutState>,
-    key: String,
-) -> Result<String, String> {
-    let key = key.trim().to_uppercase();
-    let new_shortcut = shortcut_for_key(&key)?;
-    let mut current = state
-        .0
-        .lock()
-        .map_err(|_| "The wheel shortcut settings lock is unavailable.".to_string())?;
-    if *current == key {
-        return Ok(key);
-    }
-
-    let previous_key = current.clone();
-    let previous_shortcut = shortcut_for_key(&previous_key)?;
-    app.global_shortcut()
-        .register(new_shortcut)
-        .map_err(|error| format!("{key} is unavailable. Choose another key. ({error})"))?;
-    let _ = app.global_shortcut().unregister(previous_shortcut);
-
-    if let Err(error) = save_shortcut(&app, &key) {
-        let _ = app.global_shortcut().unregister(new_shortcut);
-        let _ = app.global_shortcut().register(previous_shortcut);
-        return Err(error);
-    }
-    *current = key.clone();
-    Ok(key)
-}
+#[cfg(not(target_os = "windows"))]
+fn start_drag_monitor(_app: AppHandle) {}
 
 pub fn run() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if event.state() != ShortcutState::Pressed {
-                        return;
-                    }
-                    if shortcut == &escape_shortcut() {
+                    if event.state() == ShortcutState::Pressed && shortcut == &escape_shortcut() {
                         let _ = hide_wheel_window(app);
-                    } else {
-                        // Do not explicitly focus the overlay: stealing focus can interrupt the Explorer drag.
-                        let _ = show_wheel_window(app);
                     }
                 })
                 .build(),
@@ -281,31 +293,6 @@ pub fn run() {
                 .visible(false)
                 .shadow(false)
                 .build()?;
-
-            let app_handle = app.handle().clone();
-            let saved_shortcut = load_saved_shortcut(&app_handle);
-            let mut candidates = vec![saved_shortcut.clone()];
-            for candidate in ["F8", "F7", "F6", "F9", "F10", "F11", "F12"] {
-                if !candidates.iter().any(|existing| existing == candidate) {
-                    candidates.push(candidate.to_string());
-                }
-            }
-            let mut active_shortcut = None;
-            for candidate in candidates {
-                let shortcut = shortcut_for_key(&candidate)
-                    .expect("startup shortcut candidates are restricted to F6-F12");
-                if app.global_shortcut().register(shortcut).is_ok() {
-                    active_shortcut = Some(candidate);
-                    break;
-                }
-            }
-            let active_shortcut = active_shortcut.ok_or_else(|| {
-                std::io::Error::other("No supported SHIFT activation key could be registered.")
-            })?;
-            if active_shortcut != saved_shortcut {
-                let _ = save_shortcut(&app_handle, &active_shortcut);
-            }
-            app.manage(WheelShortcutState(Mutex::new(active_shortcut)));
 
             let show_item = MenuItem::with_id(app, "open", "Open SHIFT", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit SHIFT", true, None::<&str>)?;
@@ -329,6 +316,7 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            start_drag_monitor(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -342,11 +330,12 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_app_info,
             create_zip,
+            convert_images_to_format,
+            compress_jpeg_images,
             open_output_folder,
+            open_output_parent,
             show_wheel_overlay,
             hide_wheel_overlay,
-            get_wheel_shortcut,
-            set_wheel_shortcut
         ])
         .run(tauri::generate_context!())
         .expect("error while running SHIFT");
