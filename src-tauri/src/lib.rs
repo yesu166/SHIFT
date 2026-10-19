@@ -1,6 +1,16 @@
 mod zip_service;
 mod conversion_service;
 
+const WHEEL_WINDOW_LABEL: &str = "wheel";
+const WHEEL_WINDOW_SIZE: f64 = 520.0;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppInfo {
+    output_folder: String,
+    app_version: String,
+}
+
 use conversion_service::{compress_jpeg_images as engine_compress_jpeg_images, convert_images as engine_convert_images, ImageOperationResult};
 use serde::Serialize;
 use std::fs;
@@ -185,8 +195,9 @@ fn hide_wheel_overlay(app: AppHandle) -> Result<(), String> {
 #[cfg(target_os = "windows")]
 fn start_drag_monitor(app: AppHandle) {
     use std::{thread, time::Duration};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetAsyncKeyState, GetClassNameW, GetCursorPos, GetForegroundWindow,
+        GetClassNameW, GetCursorPos, GetForegroundWindow,
     };
 
     const VK_LBUTTON: i32 = 0x01;
@@ -220,20 +231,21 @@ fn start_drag_monitor(app: AppHandle) {
                     None
                 };
 
-                if moved && !gesture_active && requested_mode.is_some() {
-                    let hwnd = unsafe { GetForegroundWindow() };
-                    if !hwnd.is_null() {
-                        let mut class_name = [0_u16; 256];
-                        let length = unsafe { GetClassNameW(hwnd, class_name.as_mut_ptr(), class_name.len() as i32) };
-                        let class = String::from_utf16_lossy(&class_name[..length.max(0) as usize]);
-                        let explorer_source = matches!(
-                            class.as_str(),
-                            "CabinetWClass" | "ExploreWClass" | "Progman" | "WorkerW"
-                                | "Shell_TrayWnd" | "XamlExplorerHostIslandWindow"
-                        );
-                        if explorer_source {
-                            let mode = requested_mode.unwrap();
-                            if show_wheel_window(&app, mode).is_ok() {
+                if moved && !gesture_active {
+                    if let Some(mode) = requested_mode {
+                        let hwnd = unsafe { GetForegroundWindow() };
+                        if !hwnd.is_null() {
+                            let mut class_name = [0_u16; 256];
+                            let length = unsafe {
+                                GetClassNameW(hwnd, class_name.as_mut_ptr(), class_name.len() as i32)
+                            };
+                            let class = String::from_utf16_lossy(&class_name[..length.max(0) as usize]);
+                            let explorer_source = matches!(
+                                class.as_str(),
+                                "CabinetWClass" | "ExploreWClass" | "Progman" | "WorkerW"
+                                    | "Shell_TrayWnd" | "XamlExplorerHostIslandWindow"
+                            );
+                            if explorer_source && show_wheel_window(&app, mode).is_ok() {
                                 gesture_active = true;
                                 active_mode = mode.to_string();
                             }

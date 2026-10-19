@@ -276,7 +276,7 @@ mod tests {
     fn converts_transparent_png_to_jpeg() {
         let dir = tempdir().unwrap();
         let source = dir.path().join("alpha.png");
-        ImageBuffer::from_pixel(8, 8, image::Rgba([255, 0, 0, 50]))
+        ImageBuffer::from_pixel(8, 8, image::Rgba([255_u8, 0, 0, 50]))
             .save(&source)
             .unwrap();
         let result = convert_images(&[source.to_string_lossy().into_owned()], "jpg").unwrap();
@@ -295,7 +295,7 @@ mod tests {
     fn does_not_clobber_an_existing_conversion() {
         let dir = tempdir().unwrap();
         let source = dir.path().join("source.png");
-        ImageBuffer::from_pixel(4, 4, Rgb([12, 50, 200]))
+        ImageBuffer::from_pixel(4, 4, Rgb([12_u8, 50, 200]))
             .save(&source)
             .unwrap();
         let first = convert_images(&[source.to_string_lossy().into_owned()], "bmp").unwrap();
@@ -307,7 +307,7 @@ mod tests {
     fn jpeg_compression_keeps_source_and_creates_new_valid_image() {
         let dir = tempdir().unwrap();
         let source = dir.path().join("source.jpg");
-        ImageBuffer::from_pixel(80, 80, Rgb([100, 120, 140]))
+        ImageBuffer::from_pixel(80, 80, Rgb([100_u8, 120, 140]))
             .save(&source)
             .unwrap();
         let results = compress_jpeg_images(&[source.to_string_lossy().into_owned()]).unwrap();
