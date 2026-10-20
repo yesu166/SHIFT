@@ -5,6 +5,104 @@ mod engine_service;
 const WHEEL_WINDOW_LABEL: &str = "wheel";
 const WHEEL_WINDOW_SIZE: f64 = 520.0;
 
+
+const GESTURE_SHORTCUT_FILE: &str = "gesture-shortcuts.conf";
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GestureShortcuts {
+    convert: String,
+    tools: String,
+    actions: String,
+}
+
+impl Default for GestureShortcuts {
+    fn default() -> Self {
+        Self {
+            convert: "shift".to_string(),
+            tools: "altShift".to_string(),
+            actions: "ctrlShift".to_string(),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct GestureShortcutStore {
+    current: Arc<RwLock<GestureShortcuts>>,
+    path: PathBuf,
+}
+
+fn shortcut_id_is_valid(value: &str) -> bool {
+    matches!(
+        value,
+        "shift" | "ctrl" | "alt" | "ctrlShift" | "altShift" | "ctrlAlt" | "ctrlAltShift"
+    )
+}
+
+fn validate_gesture_shortcuts(shortcuts: &GestureShortcuts) -> Result<(), String> {
+    if !shortcut_id_is_valid(&shortcuts.convert)
+        || !shortcut_id_is_valid(&shortcuts.tools)
+        || !shortcut_id_is_valid(&shortcuts.actions)
+    {
+        return Err("Choose a supported Windows modifier combination for every wheel mode.".into());
+    }
+    if shortcuts.convert == shortcuts.tools
+        || shortcuts.convert == shortcuts.actions
+        || shortcuts.tools == shortcuts.actions
+    {
+        return Err("Each wheel mode needs a different shortcut.".into());
+    }
+    Ok(())
+}
+
+fn load_gesture_shortcuts(path: &Path) -> GestureShortcuts {
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(_) => return GestureShortcuts::default(),
+    };
+    let mut values = content.lines();
+    let shortcuts = GestureShortcuts {
+        convert: values.next().unwrap_or_default().to_string(),
+        tools: values.next().unwrap_or_default().to_string(),
+        actions: values.next().unwrap_or_default().to_string(),
+    };
+    if validate_gesture_shortcuts(&shortcuts).is_ok() {
+        shortcuts
+    } else {
+        GestureShortcuts::default()
+    }
+}
+
+fn gesture_shortcut_matches(shortcut: &str, shift: bool, control: bool, alt: bool) -> bool {
+    match shortcut {
+        "shift" => shift && !control && !alt,
+        "ctrl" => control && !shift && !alt,
+        "alt" => alt && !shift && !control,
+        "ctrlShift" => control && shift && !alt,
+        "altShift" => alt && shift && !control,
+        "ctrlAlt" => control && alt && !shift,
+        "ctrlAltShift" => control && alt && shift,
+        _ => false,
+    }
+}
+
+fn requested_wheel_mode(
+    shortcuts: &GestureShortcuts,
+    shift: bool,
+    control: bool,
+    alt: bool,
+) -> Option<&'static str> {
+    if gesture_shortcut_matches(&shortcuts.convert, shift, control, alt) {
+        Some("convert")
+    } else if gesture_shortcut_matches(&shortcuts.tools, shift, control, alt) {
+        Some("tools")
+    } else if gesture_shortcut_matches(&shortcuts.actions, shift, control, alt) {
+        Some("actions")
+    } else {
+        None
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AppInfo {
@@ -14,9 +112,10 @@ struct AppInfo {
 
 use conversion_service::{compress_jpeg_images as engine_compress_jpeg_images, convert_images as engine_convert_images, ImageOperationResult};
 use engine_service::{detect_engines, execute_operation as run_engine_operation, EngineOperationResult, EngineStatus};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
@@ -97,6 +196,7 @@ fn show_wheel_window(app: &AppHandle, mode: &str) -> Result<(), String> {
     // Keep the drag source focused while the contextual wheel is shown.
     let _ = app.global_shortcut().register(escape_shortcut());
     app.emit("wheel-mode", mode.to_string()).map_err(|error| format!("Could not update wheel mode: {error}"))?;
+    app.emit("wheel-opened", ()).map_err(|error| format!("Could not announce wheel opening: {error}"))?;
     Ok(())
 }
 
@@ -107,6 +207,41 @@ fn hide_wheel_window(app: &AppHandle) -> Result<(), String> {
         .map_err(|error| format!("Could not hide the SHIFT wheel: {error}"))?;
     let _ = app.global_shortcut().unregister(escape_shortcut());
     Ok(())
+}
+
+#[tauri::command]
+fn get_gesture_shortcuts(
+    state: tauri::State<'_, GestureShortcutStore>,
+) -> Result<GestureShortcuts, String> {
+    state
+        .current
+        .read()
+        .map(|shortcuts| shortcuts.clone())
+        .map_err(|_| "Could not read SHIFT gesture settings.".to_string())
+}
+
+#[tauri::command]
+fn update_gesture_shortcuts(
+    state: tauri::State<'_, GestureShortcutStore>,
+    shortcuts: GestureShortcuts,
+) -> Result<GestureShortcuts, String> {
+    validate_gesture_shortcuts(&shortcuts)?;
+    if let Some(parent) = state.path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("Could not create the SHIFT settings folder: {error}"))?;
+    }
+    let serialized = format!(
+        "{}\n{}\n{}\n",
+        shortcuts.convert, shortcuts.tools, shortcuts.actions
+    );
+    fs::write(&state.path, serialized)
+        .map_err(|error| format!("Could not save the SHIFT shortcuts: {error}"))?;
+    let mut current = state
+        .current
+        .write()
+        .map_err(|_| "Could not update SHIFT gesture settings.".to_string())?;
+    *current = shortcuts.clone();
+    Ok(shortcuts)
 }
 
 #[tauri::command]
@@ -217,12 +352,10 @@ fn hide_wheel_overlay(app: AppHandle) -> Result<(), String> {
 }
 
 #[cfg(target_os = "windows")]
-fn start_drag_monitor(app: AppHandle) {
+fn start_drag_monitor(app: AppHandle, shortcut_store: GestureShortcutStore) {
     use std::{thread, time::Duration};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetClassNameW, GetCursorPos, GetForegroundWindow,
-    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
     const VK_LBUTTON: i32 = 0x01;
     const VK_SHIFT: i32 = 0x10;
@@ -249,30 +382,21 @@ fn start_drag_monitor(app: AppHandle) {
                 let shift = is_down(VK_SHIFT);
                 let control = is_down(VK_CONTROL);
                 let alt = is_down(VK_MENU);
-                let requested_mode = if shift {
-                    Some(if control { "actions" } else if alt { "tools" } else { "convert" })
-                } else {
-                    None
-                };
+                let current_shortcuts = shortcut_store
+                    .current
+                    .read()
+                    .map(|value| value.clone())
+                    .unwrap_or_default();
+                let requested_mode =
+                    requested_wheel_mode(&current_shortcuts, shift, control, alt);
 
+                // Do not gate on the foreground HWND class: Windows can change the
+                // reported foreground window during an Explorer/desktop OLE drag.
                 if moved && !gesture_active {
                     if let Some(mode) = requested_mode {
-                        let hwnd = unsafe { GetForegroundWindow() };
-                        if !hwnd.is_null() {
-                            let mut class_name = [0_u16; 256];
-                            let length = unsafe {
-                                GetClassNameW(hwnd, class_name.as_mut_ptr(), class_name.len() as i32)
-                            };
-                            let class = String::from_utf16_lossy(&class_name[..length.max(0) as usize]);
-                            let explorer_source = matches!(
-                                class.as_str(),
-                                "CabinetWClass" | "ExploreWClass" | "Progman" | "WorkerW"
-                                    | "Shell_TrayWnd" | "XamlExplorerHostIslandWindow"
-                            );
-                            if explorer_source && show_wheel_window(&app, mode).is_ok() {
-                                gesture_active = true;
-                                active_mode = mode.to_string();
-                            }
+                        if show_wheel_window(&app, mode).is_ok() {
+                            gesture_active = true;
+                            active_mode = mode.to_string();
                         }
                     }
                 } else if gesture_active {
@@ -302,7 +426,7 @@ fn start_drag_monitor(app: AppHandle) {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn start_drag_monitor(_app: AppHandle) {}
+fn start_drag_monitor(_app: AppHandle, _shortcut_store: GestureShortcutStore) {}
 
 pub fn run() {
     tauri::Builder::default()
@@ -318,6 +442,13 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            let shortcuts_path = app.path().app_config_dir()?.join(GESTURE_SHORTCUT_FILE);
+            let shortcut_store = GestureShortcutStore {
+                current: Arc::new(RwLock::new(load_gesture_shortcuts(&shortcuts_path))),
+                path: shortcuts_path,
+            };
+            app.manage(shortcut_store.clone());
+
             let wheel_url = WebviewUrl::App("wheel.html".into());
             WebviewWindowBuilder::new(app, WHEEL_WINDOW_LABEL, wheel_url)
                 .title("SHIFT Wheel")
@@ -354,7 +485,7 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            start_drag_monitor(app.handle().clone());
+            start_drag_monitor(app.handle().clone(), shortcut_store);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -376,7 +507,41 @@ pub fn run() {
             open_output_parent,
             show_wheel_overlay,
             hide_wheel_overlay,
+            get_gesture_shortcuts,
+            update_gesture_shortcuts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SHIFT");
+}
+
+
+#[cfg(test)]
+mod gesture_shortcut_tests {
+    use super::*;
+
+    #[test]
+    fn default_gestures_match_expected_modes() {
+        let shortcuts = GestureShortcuts::default();
+        assert_eq!(requested_wheel_mode(&shortcuts, true, false, false), Some("convert"));
+        assert_eq!(requested_wheel_mode(&shortcuts, true, false, true), Some("tools"));
+        assert_eq!(requested_wheel_mode(&shortcuts, true, true, false), Some("actions"));
+        assert_eq!(requested_wheel_mode(&shortcuts, false, false, false), None);
+    }
+
+    #[test]
+    fn modifier_combinations_must_match_exactly() {
+        assert!(!gesture_shortcut_matches("shift", true, true, false));
+        assert!(!gesture_shortcut_matches("ctrlShift", true, true, true));
+        assert!(gesture_shortcut_matches("ctrlAlt", false, true, true));
+    }
+
+    #[test]
+    fn shortcut_modes_must_be_distinct() {
+        let shortcuts = GestureShortcuts {
+            convert: "shift".into(),
+            tools: "shift".into(),
+            actions: "ctrlShift".into(),
+        };
+        assert!(validate_gesture_shortcuts(&shortcuts).is_err());
+    }
 }
