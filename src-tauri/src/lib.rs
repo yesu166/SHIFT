@@ -164,7 +164,7 @@ async fn compress_jpeg_images(inputs: Vec<String>) -> Result<Vec<ImageOperationR
 
 #[tauri::command]
 async fn get_engine_status() -> Result<EngineStatus, String> {
-    tauri::async_runtime::spawn_blocking(move || detect_engines())
+    tauri::async_runtime::spawn_blocking(detect_engines)
         .await
         .map_err(|error| format!("The engine detection worker stopped unexpectedly: {error}"))
 }
