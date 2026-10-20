@@ -24,6 +24,9 @@ const GESTURE_SHORTCUT_OPTIONS: { value: GestureShortcutId; label: string }[] = 
   { value: "ctrlAlt", label: "Ctrl + Alt" },
   { value: "ctrlAltShift", label: "Ctrl + Alt + Shift" },
 ];
+function shortcutLabel(shortcut: GestureShortcutId): string {
+  return GESTURE_SHORTCUT_OPTIONS.find((option) => option.value === shortcut)?.label ?? "Shift";
+}
 interface QueuedFile { id: string; name: string; path?: string; size?: number }
 interface ZipResult { outputPath: string; inputBytes: number; archiveBytes: number; bytesSaved: number; filesArchived: number }
 interface AppInfo { outputFolder: string; appVersion: string }
@@ -241,10 +244,10 @@ function App() {
     </aside>
 
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumbs"><span>SHIFT</span><ChevronRight size={14} /><strong>{currentTitle}</strong></div><div className="topbar-actions"><div className={"local-pill" + (isDesktop ? " connected" : "")}><i />{isDesktop ? "LOCAL MODE" : "PREVIEW MODE"}</div><div className="shortcut-hint">SHIFT · ALT+SHIFT · CTRL+SHIFT</div></div></header>
+      <header className="topbar"><div className="breadcrumbs"><span>SHIFT</span><ChevronRight size={14} /><strong>{currentTitle}</strong></div><div className="topbar-actions"><div className={"local-pill" + (isDesktop ? " connected" : "")}><i />{isDesktop ? "LOCAL MODE" : "PREVIEW MODE"}</div><div className="shortcut-hint">{shortcutLabel(gestureShortcuts.convert)} · {shortcutLabel(gestureShortcuts.tools)} · {shortcutLabel(gestureShortcuts.actions)}</div></div></header>
 
       {page === "home" && <div className="page page-home">
-        <div className="page-intro"><div><div className="eyebrow"><Sparkles size={14} /> A LITTLE LESS FILE CHAOS</div><h1>Your files.<br /><span>Sorted.</span></h1><p className="intro-copy">Drag a file from File Explorer, then hold <strong>Shift</strong> to convert images, <strong>Alt+Shift</strong> for tools, or <strong>Ctrl+Shift</strong> for file actions.</p></div>
+        <div className="page-intro"><div><div className="eyebrow"><Sparkles size={14} /> A LITTLE LESS FILE CHAOS</div><h1>Your files.<br /><span>Sorted.</span></h1><p className="intro-copy">Drag a file from your Desktop or File Explorer, then hold <strong>{shortcutLabel(gestureShortcuts.convert)}</strong> to convert, <strong>{shortcutLabel(gestureShortcuts.tools)}</strong> for tools, or <strong>{shortcutLabel(gestureShortcuts.actions)}</strong> for file actions.</p></div>
           <div className="intro-orbit" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit-center"><span className="brand-mark"><span /></span></div><span className="orbit-file orbit-a"><FileText size={19} /></span><span className="orbit-file orbit-b"><FileArchive size={19} /></span><span className="orbit-file orbit-c"><CheckCircle2 size={19} /></span></div>
         </div>
         <div className={"drop-card" + (isDragging ? " drag-active" : "")} onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }} onDragOver={(e) => e.preventDefault()} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragging(false); }} onDrop={(e) => { e.preventDefault(); setIsDragging(false); addBrowserFiles(e.dataTransfer.files); }}>
@@ -326,7 +329,7 @@ function App() {
             </div>
             {shortcutStatus && <p className="settings-footnote" role="status">{shortcutStatus}</p>}
             <p className="settings-footnote">Drag a file from the Desktop or File Explorer, hold your chosen modifier combo, then move onto a wheel action and release. Outputs are created beside the original file with a “(SHIFT converted)” or operation-specific suffix. SHIFT never replaces the source file. Press Escape to cancel.</p>
-            <div className="privacy-list"><div><CheckCircle2 size={16} /><span>Native floating wheel over Explorer</span></div><div><CheckCircle2 size={16} /><span>Runs locally without file uploads</span></div></div>
+            <div className="privacy-list"><div><CheckCircle2 size={16} /><span>Native floating wheel over Desktop and Explorer</span></div><div><CheckCircle2 size={16} /><span>Runs locally without file uploads</span></div></div>
           </section>
           <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Sun size={18} /></span><div><h2>Appearance</h2><p>Choose the workspace contrast that works for you.</p></div></div>
             <div className="theme-picker" role="group" aria-label="Color theme"><button className={"theme-choice" + (theme === "light" ? " selected" : "")} type="button" onClick={() => setTheme("light")}><span className="theme-swatch theme-light"><i /><i /><i /></span><span>Light</span>{theme === "light" && <Check size={16} />}</button><button className={"theme-choice" + (theme === "dark" ? " selected" : "")} type="button" onClick={() => setTheme("dark")}><span className="theme-swatch theme-dark"><i /><i /><i /></span><span>Dark</span>{theme === "dark" && <Check size={16} />}</button></div>
