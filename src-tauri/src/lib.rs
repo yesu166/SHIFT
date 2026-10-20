@@ -7,6 +7,10 @@ const WHEEL_WINDOW_SIZE: f64 = 520.0;
 
 
 const GESTURE_SHORTCUT_FILE: &str = "gesture-shortcuts.conf";
+const WHEEL_SIZE_FILE: &str = "wheel-size.conf";
+const MIN_WHEEL_SIZE: u32 = 360;
+const MAX_WHEEL_SIZE: u32 = 720;
+const DEFAULT_WHEEL_SIZE: u32 = 520;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -30,6 +34,20 @@ impl Default for GestureShortcuts {
 struct GestureShortcutStore {
     current: Arc<RwLock<GestureShortcuts>>,
     path: PathBuf,
+}
+
+#[derive(Clone)]
+struct WheelSizeStore {
+    current: Arc<RwLock<u32>>,
+    path: PathBuf,
+}
+
+fn load_wheel_size(path: &Path) -> u32 {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|value| value.trim().parse::<u32>().ok())
+        .filter(|value| (MIN_WHEEL_SIZE..=MAX_WHEEL_SIZE).contains(value))
+        .unwrap_or(DEFAULT_WHEEL_SIZE)
 }
 
 fn shortcut_id_is_valid(value: &str) -> bool {
@@ -142,7 +160,7 @@ fn system_cursor_position() -> Option<(i32, i32)> {
     None
 }
 
-fn position_wheel_near_cursor(window: &WebviewWindow) -> Result<(), String> {
+fn position_wheel_near_cursor(window: &WebviewWindow, wheel_size: f64) -> Result<(), String> {
     let Some((cursor_x, cursor_y)) = system_cursor_position() else {
         return window
             .center()
@@ -162,7 +180,7 @@ fn position_wheel_near_cursor(window: &WebviewWindow) -> Result<(), String> {
         .as_ref()
         .map(|monitor| monitor.scale_factor())
         .unwrap_or_else(|| window.scale_factor().unwrap_or(1.0));
-    let width = (WHEEL_WINDOW_SIZE * scale).round() as i32;
+    let width = (wheel_size * scale).round() as i32;
     let height = width;
     let mut left = cursor_x - width / 2;
     let mut top = cursor_y - height / 2;
@@ -189,7 +207,19 @@ fn show_wheel_window(app: &AppHandle, mode: &str) -> Result<(), String> {
     let window = app
         .get_webview_window(WHEEL_WINDOW_LABEL)
         .ok_or_else(|| "The SHIFT wheel window is not available.".to_string())?;
-    position_wheel_near_cursor(&window)?;
+    let wheel_size = app
+        .state::<WheelSizeStore>()
+        .current
+        .read()
+        .map(|size| *size)
+        .unwrap_or(DEFAULT_WHEEL_SIZE);
+    window
+        .set_size(tauri::Size::Logical(tauri::LogicalSize::new(
+            wheel_size as f64,
+            wheel_size as f64,
+        )))
+        .map_err(|error| format!("Could not resize the SHIFT wheel: {error}"))?;
+    position_wheel_near_cursor(&window, wheel_size as f64)?;
     window
         .show()
         .map_err(|error| format!("Could not show the SHIFT wheel: {error}"))?;
@@ -242,6 +272,39 @@ fn update_gesture_shortcuts(
         .map_err(|_| "Could not update SHIFT gesture settings.".to_string())?;
     *current = shortcuts.clone();
     Ok(shortcuts)
+}
+
+#[tauri::command]
+fn get_wheel_size(state: tauri::State<'_, WheelSizeStore>) -> Result<u32, String> {
+    state
+        .current
+        .read()
+        .map(|size| *size)
+        .map_err(|_| "Could not read the SHIFT wheel size.".to_string())
+}
+
+#[tauri::command]
+fn update_wheel_size(
+    state: tauri::State<'_, WheelSizeStore>,
+    size: u32,
+) -> Result<u32, String> {
+    if !(MIN_WHEEL_SIZE..=MAX_WHEEL_SIZE).contains(&size) {
+        return Err(format!(
+            "Wheel size must be between {MIN_WHEEL_SIZE}px and {MAX_WHEEL_SIZE}px."
+        ));
+    }
+    if let Some(parent) = state.path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("Could not create the SHIFT settings folder: {error}"))?;
+    }
+    fs::write(&state.path, size.to_string())
+        .map_err(|error| format!("Could not save the SHIFT wheel size: {error}"))?;
+    let mut current = state
+        .current
+        .write()
+        .map_err(|_| "Could not update the SHIFT wheel size.".to_string())?;
+    *current = size;
+    Ok(size)
 }
 
 #[tauri::command]
@@ -479,6 +542,12 @@ pub fn run() {
                 path: shortcuts_path,
             };
             app.manage(shortcut_store.clone());
+            let wheel_size_path = app.path().app_config_dir()?.join(WHEEL_SIZE_FILE);
+            let wheel_size_store = WheelSizeStore {
+                current: Arc::new(RwLock::new(load_wheel_size(&wheel_size_path))),
+                path: wheel_size_path,
+            };
+            app.manage(wheel_size_store);
 
             let wheel_url = WebviewUrl::App("wheel.html".into());
             WebviewWindowBuilder::new(app, WHEEL_WINDOW_LABEL, wheel_url)
@@ -540,6 +609,8 @@ pub fn run() {
             hide_wheel_overlay,
             get_gesture_shortcuts,
             update_gesture_shortcuts,
+            get_wheel_size,
+            update_wheel_size,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SHIFT");
