@@ -12,6 +12,18 @@ import { getAvailableOperations, NO_OPTIONAL_ENGINES, type EngineAvailability } 
 
 type PageId = "home" | "compress" | "history" | "settings";
 type ThemeMode = "light" | "dark";
+type GestureMode = "convert" | "tools" | "actions";
+type GestureShortcutId = "shift" | "ctrl" | "alt" | "ctrlShift" | "altShift" | "ctrlAlt" | "ctrlAltShift";
+interface GestureShortcuts { convert: GestureShortcutId; tools: GestureShortcutId; actions: GestureShortcutId }
+const GESTURE_SHORTCUT_OPTIONS: { value: GestureShortcutId; label: string }[] = [
+  { value: "shift", label: "Shift" },
+  { value: "ctrl", label: "Ctrl" },
+  { value: "alt", label: "Alt" },
+  { value: "ctrlShift", label: "Ctrl + Shift" },
+  { value: "altShift", label: "Alt + Shift" },
+  { value: "ctrlAlt", label: "Ctrl + Alt" },
+  { value: "ctrlAltShift", label: "Ctrl + Alt + Shift" },
+];
 interface QueuedFile { id: string; name: string; path?: string; size?: number }
 interface ZipResult { outputPath: string; inputBytes: number; archiveBytes: number; bytesSaved: number; filesArchived: number }
 interface AppInfo { outputFolder: string; appVersion: string }
@@ -48,6 +60,13 @@ function App() {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [engineStatus, setEngineStatus] = useState<EngineAvailability>(NO_OPTIONAL_ENGINES);
+  const [gestureShortcuts, setGestureShortcuts] = useState<GestureShortcuts>({
+    convert: "shift",
+    tools: "altShift",
+    actions: "ctrlShift",
+  });
+  const [savingShortcuts, setSavingShortcuts] = useState(false);
+  const [shortcutStatus, setShortcutStatus] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; kind: "success" | "error" | "info" } | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(() => localStorage.getItem("shift.theme") === "dark" ? "dark" : "light");
   const [reducedMotion, setReducedMotion] = useState(() => localStorage.getItem("shift.reducedMotion") === "true");
@@ -73,6 +92,9 @@ function App() {
       void invoke<EngineAvailability>("get_engine_status")
         .then((status) => { if (active) setEngineStatus(status); })
         .catch((error: unknown) => { if (active) setToast({ message: "Unable to detect optional engines: " + String(error), kind: "error" }); });
+      void invoke<GestureShortcuts>("get_gesture_shortcuts")
+        .then((shortcuts) => { if (active) setGestureShortcuts(shortcuts); })
+        .catch((error: unknown) => { if (active) setShortcutStatus("Could not load shortcuts: " + String(error)); });
     }
     return () => { active = false; };
   }, [isDesktop]);
@@ -108,6 +130,24 @@ function App() {
     setPage("compress");
     if (!isDesktop && incoming.length) setToast({ message: "Preview mode only. Open the Windows desktop build to process native file paths.", kind: "info" });
   }, [isDesktop]);
+
+  const saveGestureShortcut = useCallback(async (mode: GestureMode, value: GestureShortcutId) => {
+    const previous = gestureShortcuts;
+    const next = { ...gestureShortcuts, [mode]: value };
+    setGestureShortcuts(next);
+    setSavingShortcuts(true);
+    setShortcutStatus("Saving shortcuts…");
+    try {
+      const saved = await invoke<GestureShortcuts>("update_gesture_shortcuts", { shortcuts: next });
+      setGestureShortcuts(saved);
+      setShortcutStatus("Shortcuts saved.");
+    } catch (error) {
+      setGestureShortcuts(previous);
+      setShortcutStatus(String(error));
+    } finally {
+      setSavingShortcuts(false);
+    }
+  }, [gestureShortcuts]);
 
   const chooseFiles = useCallback(async () => {
     if (!isDesktop) { fileInputRef.current?.click(); return; }
@@ -263,11 +303,29 @@ function App() {
         <div className="settings-layout">
           <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Command size={18} /></span><div><h2>Drag gestures</h2><p>Bring the right action to your pointer without switching windows.</p></div></div>
             <div className="gesture-shortcut-list">
-              <div><kbd>Shift</kbd><span><strong>Convert</strong><small>PNG, JPG, WebP, BMP and TIFF from supported image inputs.</small></span></div>
-              <div><kbd>Alt + Shift</kbd><span><strong>Tools</strong><small>Compress JPEGs or bundle any selection into ZIP.</small></span></div>
-              <div><kbd>Ctrl + Shift</kbd><span><strong>File actions</strong><small>Copy selected file paths or open SHIFT's output folder.</small></span></div>
+              {([
+                { mode: "convert", title: "Convert", detail: "Show formats supported by the dragged files." },
+                { mode: "tools", title: "Tools", detail: "Compress or package supported files." },
+                { mode: "actions", title: "File actions", detail: "Copy paths or open the output location." },
+              ] as { mode: GestureMode; title: string; detail: string }[]).map(({ mode, title, detail }) => (
+                <label className="gesture-shortcut-setting" key={mode}>
+                  <span className="gesture-shortcut-copy"><strong>{title}</strong><small>{detail}</small></span>
+                  <select
+                    className="shortcut-select"
+                    aria-label={title + " drag shortcut"}
+                    value={gestureShortcuts[mode]}
+                    disabled={!isDesktop || savingShortcuts}
+                    onChange={(event) => void saveGestureShortcut(mode, event.target.value as GestureShortcutId)}
+                  >
+                    {GESTURE_SHORTCUT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+              ))}
             </div>
-            <p className="settings-footnote">Start the drag first, then press the modifier. Outputs are written as new files; the source is never replaced. Press Escape to cancel.</p>
+            {shortcutStatus && <p className="settings-footnote" role="status">{shortcutStatus}</p>}
+            <p className="settings-footnote">Drag a file from the Desktop or File Explorer, hold your chosen modifier combo, then move onto a wheel action and release. Outputs are created beside the original file with a “(SHIFT converted)” or operation-specific suffix. SHIFT never replaces the source file. Press Escape to cancel.</p>
             <div className="privacy-list"><div><CheckCircle2 size={16} /><span>Native floating wheel over Explorer</span></div><div><CheckCircle2 size={16} /><span>Runs locally without file uploads</span></div></div>
           </section>
           <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Sun size={18} /></span><div><h2>Appearance</h2><p>Choose the workspace contrast that works for you.</p></div></div>
