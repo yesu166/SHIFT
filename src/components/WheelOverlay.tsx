@@ -344,7 +344,7 @@ export default function WheelOverlay() {
               data-operation={action.id}
               aria-label={action.title}
               title={action.detail}
-              style={{ left: point.x + "%", top: point.y + "%", animationDelay: Math.min(index, 8) * 18 + "ms" }}
+              style={{ left: point.x + "%", top: point.y + "%", width: (actions.length > 9 ? 18 : actions.length > 7 ? 22 : 28) + "%", animationDelay: Math.min(index, 8) * 18 + "ms" }}
               onClick={() => void executeAction(action.id, dragPaths)}
               disabled={busy}
             >
