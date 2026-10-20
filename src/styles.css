@@ -127,6 +127,10 @@
 :root[data-wheel-overlay=true] .shift-wheel-shell.wheel-open-1 {
   animation: shift-wheel-in-again .18s cubic-bezier(.2, .8, .2, 1) both;
 }
+:root[data-reduced-motion=true][data-wheel-overlay=true] .shift-wheel-shell.wheel-open-0,
+:root[data-reduced-motion=true][data-wheel-overlay=true] .shift-wheel-shell.wheel-open-1 {
+  animation: none;
+}
 @keyframes shift-wheel-in-again {
   from { opacity: 0; transform: scale(.94); }
   to { opacity: 1; transform: scale(1); }
