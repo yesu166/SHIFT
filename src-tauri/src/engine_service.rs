@@ -854,15 +854,14 @@ fn tar_or_gzip_to_zip(input: &Path, output_dir: &Path) -> Result<Vec<EngineOpera
         name_stem.clone()
     };
     let extraction_root = work.path().join(if folder_name.is_empty() { "extracted" } else { &folder_name });
-    let zip_source: PathBuf;
-    if extension == "tar" || compressed_tar {
+    let zip_source: PathBuf = if extension == "tar" || compressed_tar {
         let reader: Box<dyn Read> = if extension == "tar" {
             Box::new(File::open(input).map_err(|error| format!("Could not open TAR input: {error}"))?)
         } else {
             Box::new(GzDecoder::new(File::open(input).map_err(|error| format!("Could not open GZIP input: {error}"))?))
         };
         unpack_tar_to_directory(reader, &extraction_root)?;
-        zip_source = extraction_root.clone();
+        extraction_root.clone()
     } else {
         // A plain .gz is a compressed single file, not necessarily a TAR stream.
         fs::create_dir_all(&extraction_root).map_err(|error| error.to_string())?;
@@ -877,8 +876,8 @@ fn tar_or_gzip_to_zip(input: &Path, output_dir: &Path) -> Result<Vec<EngineOpera
         if target.metadata().map_err(|error| error.to_string())?.len() > MAX_ARCHIVE_UNPACKED_BYTES {
             return Err("GZIP contents exceed SHIFT's 2 GiB safe extraction limit.".into());
         }
-        zip_source = output;
-    }
+        output
+    };
 
     let zip_result = crate::zip_service::create_zip_in_dir(
         &[zip_source.to_string_lossy().into_owned()],
