@@ -15,6 +15,8 @@ type ThemeMode = "light" | "dark";
 type GestureMode = "convert" | "tools" | "actions";
 type GestureShortcutId = "shift" | "ctrl" | "alt" | "ctrlShift" | "altShift" | "ctrlAlt" | "ctrlAltShift";
 interface GestureShortcuts { convert: GestureShortcutId; tools: GestureShortcutId; actions: GestureShortcutId }
+const MIN_WHEEL_SIZE = 360;
+const MAX_WHEEL_SIZE = 720;
 const GESTURE_SHORTCUT_OPTIONS: { value: GestureShortcutId; label: string }[] = [
   { value: "shift", label: "Shift" },
   { value: "ctrl", label: "Ctrl" },
@@ -70,6 +72,10 @@ function App() {
   });
   const [savingShortcuts, setSavingShortcuts] = useState(false);
   const [shortcutStatus, setShortcutStatus] = useState<string | null>(null);
+  const [wheelSize, setWheelSize] = useState(520);
+  const [draftWheelSize, setDraftWheelSize] = useState(520);
+  const [savingWheelSize, setSavingWheelSize] = useState(false);
+  const [wheelSizeStatus, setWheelSizeStatus] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; kind: "success" | "error" | "info" } | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(() => localStorage.getItem("shift.theme") === "dark" ? "dark" : "light");
   const [reducedMotion, setReducedMotion] = useState(() => localStorage.getItem("shift.reducedMotion") === "true");
@@ -98,6 +104,9 @@ function App() {
       void invoke<GestureShortcuts>("get_gesture_shortcuts")
         .then((shortcuts) => { if (active) setGestureShortcuts(shortcuts); })
         .catch((error: unknown) => { if (active) setShortcutStatus("Could not load shortcuts: " + String(error)); });
+      void invoke<number>("get_wheel_size")
+        .then((size) => { if (active) { setWheelSize(size); setDraftWheelSize(size); } })
+        .catch((error: unknown) => { if (active) setWheelSizeStatus("Could not load wheel size: " + String(error)); });
     }
     return () => { active = false; };
   }, [isDesktop]);
@@ -151,6 +160,22 @@ function App() {
       setSavingShortcuts(false);
     }
   }, [gestureShortcuts]);
+
+  const saveWheelSize = useCallback(async () => {
+    setSavingWheelSize(true);
+    setWheelSizeStatus("Saving wheel size…");
+    try {
+      const saved = await invoke<number>("update_wheel_size", { size: draftWheelSize });
+      setWheelSize(saved);
+      setDraftWheelSize(saved);
+      setWheelSizeStatus("Wheel size saved.");
+    } catch (error) {
+      setDraftWheelSize(wheelSize);
+      setWheelSizeStatus(String(error));
+    } finally {
+      setSavingWheelSize(false);
+    }
+  }, [draftWheelSize, wheelSize]);
 
   const chooseFiles = useCallback(async () => {
     if (!isDesktop) { fileInputRef.current?.click(); return; }
@@ -247,7 +272,7 @@ function App() {
       <header className="topbar"><div className="breadcrumbs"><span>SHIFT</span><ChevronRight size={14} /><strong>{currentTitle}</strong></div><div className="topbar-actions"><div className={"local-pill" + (isDesktop ? " connected" : "")}><i />{isDesktop ? "LOCAL MODE" : "PREVIEW MODE"}</div><div className="shortcut-hint">{shortcutLabel(gestureShortcuts.convert)} · {shortcutLabel(gestureShortcuts.tools)} · {shortcutLabel(gestureShortcuts.actions)}</div></div></header>
 
       {page === "home" && <div className="page page-home">
-        <div className="page-intro"><div><div className="eyebrow"><Sparkles size={14} /> A LITTLE LESS FILE CHAOS</div><h1>Your files.<br /><span>Sorted.</span></h1><p className="intro-copy">Drag a file from your Desktop or File Explorer, then hold <strong>{shortcutLabel(gestureShortcuts.convert)}</strong> to convert, <strong>{shortcutLabel(gestureShortcuts.tools)}</strong> for tools, or <strong>{shortcutLabel(gestureShortcuts.actions)}</strong> for file actions.</p></div>
+        <div className="page-intro"><div><div className="eyebrow"><Sparkles size={14} /> WINDOWS FILE TOOLS</div><h1>Convert and compress<br /><span>at the cursor.</span></h1><p className="intro-copy">Drag a file from your Desktop or File Explorer, then hold <strong>{shortcutLabel(gestureShortcuts.convert)}</strong> to convert, <strong>{shortcutLabel(gestureShortcuts.tools)}</strong> for tools, or <strong>{shortcutLabel(gestureShortcuts.actions)}</strong> for file actions.</p></div>
           <div className="intro-orbit" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit-center"><span className="brand-mark"><span /></span></div><span className="orbit-file orbit-a"><FileText size={19} /></span><span className="orbit-file orbit-b"><FileArchive size={19} /></span><span className="orbit-file orbit-c"><CheckCircle2 size={19} /></span></div>
         </div>
         <div className={"drop-card" + (isDragging ? " drag-active" : "")} onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }} onDragOver={(e) => e.preventDefault()} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragging(false); }} onDrop={(e) => { e.preventDefault(); setIsDragging(false); addBrowserFiles(e.dataTransfer.files); }}>
@@ -302,9 +327,9 @@ function App() {
         </section>
       </div>}
 
-      {page === "settings" && <div className="page"><div className="page-title-row"><div><div className="eyebrow"><Settings size={14} /> PREFERENCES</div><h1>Make SHIFT yours.</h1><p>Settings that actually change behavior. No decorative switches.</p></div></div>
+      {page === "settings" && <div className="page"><div className="page-title-row"><div><div className="eyebrow"><Settings size={14} /> SETTINGS</div><h1>Settings</h1><p>Configure shortcuts, wheel size, appearance, and output locations.</p></div></div>
         <div className="settings-layout">
-          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Command size={18} /></span><div><h2>Drag gestures</h2><p>Bring the right action to your pointer without switching windows.</p></div></div>
+          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Command size={18} /></span><div><h2>Drag shortcuts</h2><p>Change the wheel mode while dragging a file.</p></div></div>
             <div className="gesture-shortcut-list">
               {([
                 { mode: "convert", title: "Convert", detail: "Show formats supported by the dragged files." },
@@ -331,12 +356,34 @@ function App() {
             <p className="settings-footnote">Drag a file from the Desktop or File Explorer, hold your chosen modifier combo, then move onto a wheel action and release. Outputs are created beside the original file with a “(SHIFT converted)” or operation-specific suffix. SHIFT never replaces the source file. Press Escape to cancel.</p>
             <div className="privacy-list"><div><CheckCircle2 size={16} /><span>Native floating wheel over Desktop and Explorer</span></div><div><CheckCircle2 size={16} /><span>Runs locally without file uploads</span></div></div>
           </section>
-          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Sun size={18} /></span><div><h2>Appearance</h2><p>Choose the workspace contrast that works for you.</p></div></div>
+          <section className="workspace-card settings-card wheel-size-card">
+            <div className="settings-section-heading"><span className="settings-icon"><Command size={18} /></span><div><h2>Wheel size</h2><p>Choose how large the wheel appears around the pointer.</p></div></div>
+            <div className="wheel-size-heading"><label htmlFor="wheel-size-slider">Wheel diameter</label><strong>{draftWheelSize}px</strong></div>
+            <input
+              id="wheel-size-slider"
+              className="wheel-size-slider"
+              type="range"
+              min={MIN_WHEEL_SIZE}
+              max={MAX_WHEEL_SIZE}
+              step={20}
+              value={draftWheelSize}
+              disabled={!isDesktop || savingWheelSize}
+              onChange={(event) => { setDraftWheelSize(Number(event.target.value)); setWheelSizeStatus(null); }}
+              aria-describedby="wheel-size-help"
+            />
+            <div className="wheel-size-range-labels"><span>Compact · {MIN_WHEEL_SIZE}px</span><span>Large · {MAX_WHEEL_SIZE}px</span></div>
+            <p id="wheel-size-help" className="settings-footnote">The new size applies the next time the wheel opens. Choose a size that keeps the actions easy to target without covering too much of the screen.</p>
+            {wheelSizeStatus && <p className="settings-footnote" role="status">{wheelSizeStatus}</p>}
+            <button className="button button-primary full-width" type="button" onClick={() => void saveWheelSize()} disabled={!isDesktop || savingWheelSize || draftWheelSize === wheelSize}>
+              {savingWheelSize ? "Saving…" : "Save wheel size"}
+            </button>
+          </section>
+          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Sun size={18} /></span><div><h2>Appearance</h2><p>Set the theme and animation preferences.</p></div></div>
             <div className="theme-picker" role="group" aria-label="Color theme"><button className={"theme-choice" + (theme === "light" ? " selected" : "")} type="button" onClick={() => setTheme("light")}><span className="theme-swatch theme-light"><i /><i /><i /></span><span>Light</span>{theme === "light" && <Check size={16} />}</button><button className={"theme-choice" + (theme === "dark" ? " selected" : "")} type="button" onClick={() => setTheme("dark")}><span className="theme-swatch theme-dark"><i /><i /><i /></span><span>Dark</span>{theme === "dark" && <Check size={16} />}</button></div>
             <div className="settings-divider" /><div className="settings-row"><span className="settings-icon">{reducedMotion ? <Moon size={18} /> : <Zap size={18} />}</span><span className="settings-row-copy"><strong>Reduce motion</strong><small>Limit interface transitions and movement.</small></span><button className={"toggle" + (reducedMotion ? " on" : "")} type="button" role="switch" aria-checked={reducedMotion} onClick={() => setReducedMotion(!reducedMotion)} aria-label="Reduce motion"><span /></button></div>
           </section>
-          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><HardDrive size={18} /></span><div><h2>Storage &amp; privacy</h2><p>Local outputs, no upload pipeline.</p></div></div><div className="setting-info"><span>Default archives folder</span><strong>{appInfo?.outputFolder ?? "Documents / SHIFT / Archives"}</strong></div><button className="button button-secondary full-width" type="button" onClick={openOutputFolder}><FolderOpen size={16} /> Open destination folder</button><div className="privacy-list"><div><CheckCircle2 size={16} /><span>Core ZIP operation works locally</span></div><div><CheckCircle2 size={16} /><span>No account or cloud upload required</span></div><div><CheckCircle2 size={16} /><span>History remains in this session</span></div></div></section>
-          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Activity size={18} /></span><div><h2>System status</h2><p>Dependency availability in this build.</p></div></div><div className="system-status-row"><span>Desktop bridge</span><strong className={isDesktop ? "system-ready" : "system-warn"}><i /> {isDesktop ? "Connected" : "Web preview only"}</strong></div><div className="system-status-row"><span>ZIP engine</span><strong className="system-ready"><i /> Rust · DEFLATE</strong></div><div className="system-status-row"><span>Image conversion</span><strong className="system-ready"><i /> Rust · 5 formats</strong></div><div className="system-status-row"><span>JPEG compression</span><strong className="system-ready"><i /> Quality 78</strong></div><div className="system-status-row"><span>PDF tools (qpdf)</span><strong className={engineStatus.qpdf ? "system-ready" : "system-warn"}><i /> {engineStatus.qpdf ? "Detected" : "Install qpdf"}</strong></div>
+          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><HardDrive size={18} /></span><div><h2>Storage</h2><p>Choose and inspect local output locations.</p></div></div><div className="setting-info"><span>Default archive folder</span><strong>{appInfo?.outputFolder ?? "Documents / SHIFT / Archives"}</strong></div><button className="button button-secondary full-width" type="button" onClick={openOutputFolder}><FolderOpen size={16} /> Open destination folder</button><div className="privacy-list"><div><CheckCircle2 size={16} /><span>Core ZIP operation works locally</span></div><div><CheckCircle2 size={16} /><span>No account or cloud upload required</span></div><div><CheckCircle2 size={16} /><span>History remains in this session</span></div></div></section>
+          <section className="workspace-card settings-card"><div className="settings-section-heading"><span className="settings-icon"><Activity size={18} /></span><div><h2>System status</h2><p>Check which local tools are available.</p></div></div><div className="system-status-row"><span>Desktop bridge</span><strong className={isDesktop ? "system-ready" : "system-warn"}><i /> {isDesktop ? "Connected" : "Web preview only"}</strong></div><div className="system-status-row"><span>ZIP engine</span><strong className="system-ready"><i /> Rust · DEFLATE</strong></div><div className="system-status-row"><span>Image conversion</span><strong className="system-ready"><i /> Rust · 5 formats</strong></div><div className="system-status-row"><span>JPEG compression</span><strong className="system-ready"><i /> Quality 78</strong></div><div className="system-status-row"><span>PDF tools (qpdf)</span><strong className={engineStatus.qpdf ? "system-ready" : "system-warn"}><i /> {engineStatus.qpdf ? "Detected" : "Install qpdf"}</strong></div>
           <div className="system-status-row"><span>PDF render/text (Poppler)</span><strong className={engineStatus.poppler ? "system-ready" : "system-warn"}><i /> {engineStatus.poppler ? "Detected" : "Install Poppler"}</strong></div>
           <div className="system-status-row"><span>SVG export (Inkscape)</span><strong className={engineStatus.inkscape ? "system-ready" : "system-warn"}><i /> {engineStatus.inkscape ? "Inkscape detected" : "Install Inkscape"}</strong></div>
           <div className="system-status-row"><span>Audio/video + advanced images</span><strong className={engineStatus.ffmpeg ? "system-ready" : "system-warn"}><i /> {engineStatus.ffmpeg ? "FFmpeg detected" : "Install FFmpeg"}</strong></div>
