@@ -338,13 +338,13 @@ export default function WheelOverlay() {
           const Icon = iconFor(action);
           return (
             <button
-              key={action.id}
+              key={wheelOpenId + "-" + action.id}
               type="button"
               className={"shift-wheel-action" + (hoveredAction === action.id ? " drop-highlight" : "")}
               data-operation={action.id}
               aria-label={action.title}
               title={action.detail}
-              style={{ left: point.x + "%", top: point.y + "%" }}
+              style={{ left: point.x + "%", top: point.y + "%", animationDelay: Math.min(index, 8) * 18 + "ms" }}
               onClick={() => void executeAction(action.id, dragPaths)}
               disabled={busy}
             >
