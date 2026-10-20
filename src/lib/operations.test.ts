@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  extensionOf, getAvailableOperations, getOperationById, getWheelOperations,
+  extensionOf, getAvailableOperations, getOperationById, getUnavailableWheelOperations, getWheelOperations,
   NO_OPTIONAL_ENGINES, OPERATIONS, type EngineAvailability,
 } from "./operations";
 
@@ -42,6 +42,14 @@ describe("SHIFT operation registry", () => {
       .toContain("media-video-mkv");
     expect(getWheelOperations(["recording.mp4"], "convert", installed).map((op) => op.id))
       .toContain("extract-audio-mp3");
+  });
+
+  it("explains compatible options that are hidden behind missing engines", () => {
+    const pdfOptions = getUnavailableWheelOperations(["report.pdf"], "convert");
+    expect(pdfOptions.map((op) => op.id)).toContain("pdf-to-image-jpg");
+    expect(pdfOptions.map((op) => op.id)).toContain("pdf-office-docx");
+    expect(getUnavailableWheelOperations(["photo.jpg"], "convert")).toEqual([]);
+    expect(getUnavailableWheelOperations(["photo.jpg"], "convert", installed)).toEqual([]);
   });
 
   it("gates Office and PDF tools on their native engines", () => {
