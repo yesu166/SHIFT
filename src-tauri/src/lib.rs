@@ -306,6 +306,8 @@ fn start_drag_monitor(_app: AppHandle) {}
 
 pub fn run() {
     tauri::Builder::default()
+        // Register the native dialog plugin used by the React file/folder pickers.
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
