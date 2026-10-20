@@ -8,9 +8,16 @@ import {
 } from "lucide-react";
 import { formatBytes } from "../lib/format";
 import { getRadialPosition } from "../lib/radial";
-import { getWheelOperations, NO_OPTIONAL_ENGINES, type EngineAvailability } from "../lib/operations";
+import { extensionOf, getWheelOperations, NO_OPTIONAL_ENGINES, type EngineAvailability } from "../lib/operations";
 
 type WheelMode = "convert" | "tools" | "actions";
+type GestureShortcutId = "shift" | "ctrl" | "alt" | "ctrlShift" | "altShift" | "ctrlAlt" | "ctrlAltShift";
+interface GestureShortcuts { convert: GestureShortcutId; tools: GestureShortcutId; actions: GestureShortcutId }
+const DEFAULT_GESTURE_SHORTCUTS: GestureShortcuts = { convert: "shift", tools: "altShift", actions: "ctrlShift" };
+const SHORTCUT_LABELS: Record<GestureShortcutId, string> = {
+  shift: "Shift", ctrl: "Ctrl", alt: "Alt", ctrlShift: "Ctrl + Shift",
+  altShift: "Alt + Shift", ctrlAlt: "Ctrl + Alt", ctrlAltShift: "Ctrl + Alt + Shift",
+};
 
 interface ZipResult {
   outputPath: string;
@@ -47,8 +54,14 @@ function leafName(path: string): string { return path.split(/[\\/]/).pop() || pa
 function titleForMode(mode: WheelMode): string {
   return mode === "convert" ? "Convert" : mode === "tools" ? "Tools" : "File actions";
 }
-function hintForMode(mode: WheelMode): string {
-  return mode === "convert" ? "SHIFT · CONVERT" : mode === "tools" ? "ALT + SHIFT · TOOLS" : "CTRL + SHIFT · ACTIONS";
+function hintForMode(mode: WheelMode, shortcuts: GestureShortcuts): string {
+  return SHORTCUT_LABELS[shortcuts[mode]].toUpperCase() + " · " + titleForMode(mode).toUpperCase();
+}
+function alternateModeHint(mode: WheelMode, shortcuts: GestureShortcuts): string {
+  return (["convert", "tools", "actions"] as WheelMode[])
+    .filter((candidate) => candidate !== mode)
+    .map((candidate) => SHORTCUT_LABELS[shortcuts[candidate]] + ": " + titleForMode(candidate))
+    .join("  ·  ");
 }
 function iconFor(action: WheelAction) {
   if (action.kind === "archive" || action.kind === "tar" || action.kind === "gzip") return Archive;
@@ -98,6 +111,7 @@ function operationAt(position: PhysicalPoint): string | null {
 
 export default function WheelOverlay() {
   const [mode, setMode] = useState<WheelMode>("convert");
+  const [gestureShortcuts, setGestureShortcuts] = useState<GestureShortcuts>(DEFAULT_GESTURE_SHORTCUTS);
   const [wheelOpenId, setWheelOpenId] = useState(0);
   const [dragPaths, setDragPaths] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -209,6 +223,7 @@ export default function WheelOverlay() {
 
   useEffect(() => {
     void invoke<EngineAvailability>("get_engine_status").then((status) => setEngineStatus(status)).catch(() => {});
+    void invoke<GestureShortcuts>("get_gesture_shortcuts").then(setGestureShortcuts).catch(() => {});
     document.documentElement.dataset.theme = localStorage.getItem("shift.theme") === "dark" ? "dark" : "light";
     document.documentElement.dataset.reducedMotion = localStorage.getItem("shift.reducedMotion") === "true" ? "true" : "false";
 
@@ -280,13 +295,16 @@ export default function WheelOverlay() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [hide]);
 
+  const selectedTypes = Array.from(new Set(
+    dragPaths.map((path) => extensionOf(leafName(path))).filter(Boolean),
+  ));
+  const selectedTypeLabel = selectedTypes.length ? selectedTypes.join(", ") : "this selection";
   const actionHint = !dragPaths.length
-    ? "Drag a file, then press a modifier"
+    ? "Waiting for a file drag"
     : actions.length
-      ? "Drop the file on an action"
-      : mode === "convert"
-        ? "No image conversion for this file type yet"
-        : "No matching actions for this selection";
+      ? "Release over an action to run it"
+      : "No " + titleForMode(mode).toLowerCase() + " options for " + selectedTypeLabel;
+  const modeHelp = alternateModeHint(mode, gestureShortcuts);
 
   return (
     <main className="shift-wheel-root" aria-label="SHIFT contextual file wheel">
@@ -337,10 +355,14 @@ export default function WheelOverlay() {
           );
         })}
         {!actions.length && !summary && !busy && (
-          <div className="shift-wheel-no-actions"><Layers size={15} /><span>{actionHint}</span></div>
+          <div className="shift-wheel-no-actions">
+            <Layers size={15} />
+            <span>{actionHint}</span>
+            {dragPaths.length > 0 && <small>{modeHelp}</small>}
+          </div>
         )}
         <button className="shift-wheel-close" type="button" onClick={() => void hide()} aria-label="Close SHIFT wheel"><X size={15} /></button>
-        <div className="shift-wheel-foot"><Zap size={12} /> {hintForMode(mode)} · ESC TO CLOSE</div>
+        <div className="shift-wheel-foot"><Zap size={12} /> {hintForMode(mode, gestureShortcuts)} · ESC TO CLOSE</div>
         {notice && <div className="shift-wheel-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message"><X size={13} /></button></div>}
         {summary && (
           <div className="shift-wheel-result" role="status">
