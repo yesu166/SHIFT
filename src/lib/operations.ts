@@ -218,6 +218,25 @@ export function getWheelOperations(fileNames: readonly string[], mode: WheelMode
   return getAvailableOperations(fileNames, engines).filter((operation) => operation.wheelMode === mode);
 }
 
+/** Return type-compatible actions hidden only because a required local engine is unavailable. */
+export function getUnavailableWheelOperations(
+  fileNames: readonly string[],
+  mode: WheelMode,
+  engines: EngineAvailability = NO_OPTIONAL_ENGINES,
+): OperationDefinition[] {
+  if (fileNames.length === 0) return [];
+  const extensions = fileNames.map(extensionOf);
+  return OPERATIONS.filter((operation) =>
+    operation.status === "available"
+    && operation.wheelMode === mode
+    && !supportsEngine(operation, engines)
+    && (operation.acceptedExtensions.includes("*") || extensions.every((extension) => operation.acceptedExtensions.includes(extension)))
+    && !(operation.category === "convert" && targetAlreadyPresent(operation.targetFormat, extensions))
+    && !(operation.id === "pdf-merge" && fileNames.length < 2)
+    && !(operation.id === "create-gzip" && fileNames.length !== 1),
+  );
+}
+
 export function getOperationById(id: string): OperationDefinition | undefined {
   return OPERATIONS.find((operation) => operation.id === id);
 }
