@@ -136,7 +136,7 @@
   to { opacity: 1; transform: scale(1); }
 }
 :root[data-wheel-overlay=true] .shift-wheel-shell {
-  width: min(100%, 520px); height: min(100%, 520px); aspect-ratio: 1;
+  width: min(100%, 100vh); height: min(100%, 100vh); aspect-ratio: 1;
   background: color-mix(in srgb, var(--panel) 88%, transparent);
   box-shadow: 0 24px 68px #24170d3a, inset 0 0 0 8px color-mix(in srgb, var(--panel) 52%, transparent);
 }
@@ -181,6 +181,13 @@
   color: var(--muted); font-size: 9px; line-height: 1.4; text-align: center; pointer-events: none;
 }
 :root[data-wheel-overlay=true] .shift-wheel-no-actions svg { flex: 0 0 auto; color: var(--orange2); }
+:root[data-wheel-overlay=true] .shift-wheel-no-actions {
+  flex-direction: column; gap: 4px; top: 76%; width: 68%;
+}
+:root[data-wheel-overlay=true] .shift-wheel-no-actions > span { font-size: 9px; }
+:root[data-wheel-overlay=true] .shift-wheel-no-actions > small {
+  max-width: 100%; color: var(--muted); font-size: 8px; line-height: 1.5; text-align: center;
+}
 :root[data-wheel-overlay=true] .shift-wheel-notice {
   bottom: 5%; transform: translate(-50%, 0); width: 78%; padding: 10px 12px;
   font-size: 10px; z-index: 12;
@@ -207,6 +214,12 @@
 .gesture-shortcut-list span { display: grid; gap: 3px; }
 .gesture-shortcut-list strong { color: var(--ink); font-size: 11px; }
 .gesture-shortcut-list small { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.wheel-size-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; color: var(--ink2); font-size: 11px; }
+.wheel-size-heading strong { color: var(--orange2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.wheel-size-slider { display: block; width: 100%; margin: 16px 0 8px; accent-color: var(--orange); cursor: pointer; }
+.wheel-size-slider:disabled { opacity: .55; cursor: wait; }
+.wheel-size-range-labels { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 9px; }
+.wheel-size-card .button { margin-top: 12px; }
 
 .gesture-shortcut-setting {
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(132px, 42%);
