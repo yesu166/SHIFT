@@ -1,21 +1,34 @@
-# Supported features matrix
+# Supported features
 
-All user-facing operations remain unavailable until implemented and tested with real outputs. Planned ideas must not be presented as working capabilities.
+The table shows operations connected to the current branch. Optional-engine items appear in the wheel only when the required tool(s) are detected in PATH.
 
-| Feature | Inputs | Output | Status | Required evidence before enabling |
-|---|---|---|---|---|
-| Compress Files to ZIP | Files/folders | Standard compressed ZIP | PLANNED | DEFLATE, Unicode/nested paths, output integrity, Windows-compatible extraction, actual metrics. |
-| PDF merge | PDF files | PDF | PLANNED | Reopen output; check page count/order; preserve sources. |
-| PDF split/extract | PDF + page selection | PDF file(s) | PLANNED | Validate ranges, output page counts, and content order. |
-| PDF rotate/reorder/remove | PDF + page operations | PDF | PLANNED | Reopen output and verify page count/orientation/order. |
-| Optimize PDF | PDF | Optimized PDF | PLANNED | Structural validation and measured before/after bytes; output may grow. |
-| DOCX to PDF | DOCX | PDF | PLANNED | Verified engine and representative rendering/fidelity tests. |
-| XLSX to PDF | XLSX | PDF | PLANNED | Verified engine; test print areas, sheets, formulas, fonts and layout. |
-| PPTX to PDF | PPTX | PDF | PLANNED | Verified engine; test slides, images, fonts and layouts. |
-| PDF password protection | PDF + user-supplied password | Encrypted PDF | PLANNED | Supported engine and encryption/output reopening checks; never log password. |
-| PDF password removal | Encrypted PDF + supplied password | PDF | PLANNED | Supported engine, correct password validation and source preservation. |
-| Page numbers/watermarks | PDF + options | PDF | PLANNED | Actual PDF-writing implementation; renderer alone is insufficient. |
-| ZIP extraction | ZIP | Files/folders | PLANNED | Zip Slip/symlink protections, bounds, collision handling, safe limits and independent tests. |
-| Cross-app Shift-drag | OS interaction | Action menu | BLOCKED | Windows proof of concept that obtains the actual dragged payload safely and reliably. |
+| Family | Inputs | Outputs/actions | Engine |
+|---|---|---|---|
+| Raster images | PNG, JPG/JPEG, WebP, BMP, TIFF | Convert among PNG, JPG, WebP, BMP and TIFF | Built-in Rust image engine |
+| Advanced images | HEIC, HEIF, AVIF, GIF and supported raster inputs | Convert to/from HEIC/AVIF/GIF where encoder exists | Optional FFmpeg |
+| Vector graphics | SVG | PNG or PDF | Optional Inkscape |
+| Images to PDF | PNG, JPG/JPEG, BMP, TIFF | PDF | Optional LibreOffice |
+| JPEG compression | JPG/JPEG | Quality-78 re-encode to a new file | Built in, lossy |
+| Audio | MP3, M4A, WAV, FLAC, OGG, Opus, AIFF, WMA | Conversion to supported registered audio targets | Optional FFmpeg; encoders vary |
+| Video | MP4, MOV, MKV, WebM, AVI, WMV | Convert among registered video targets or export audio to MP3 | Optional FFmpeg |
+| Media compression | Selected MP3/M4A/FLAC/OGG/Opus/WMA and video formats | Size-focused re-encode | Optional FFmpeg; quality trade-offs apply |
+| PDF tools | PDF | Optimize streams; merge two or more PDFs | Optional qpdf |
+| PDF export/extraction | PDF | Every page to JPG/PNG at 300 DPI; extract text to TXT/Markdown | Optional Poppler |
+| Documents | DOCX, ODT, RTF, TXT, Markdown, HTML, EPUB and other registered office-compatible inputs | PDF/DOCX/ODT/RTF/TXT/HTML/EPUB and selected registered office outputs | Optional LibreOffice; best effort |
+| Slides | PPT, PPTX, ODP | PDF; each slide to JPG/PNG | LibreOffice; Poppler also required for images |
+| Spreadsheets | XLS, XLSX, ODS, CSV, TSV | PDF/XLSX/ODS/CSV/TSV | Optional LibreOffice |
+| Subtitles | SRT, VTT | SRT ↔ VTT and TXT caption export | Built in, UTF-8 |
+| Text/web | TXT, MD, Markdown | Safe basic HTML export | Built in |
+| Archives | Files/folders | ZIP, TAR, TAR.GZ; single-file GZIP | Built in |
+| Archives | TAR, TGZ, TAR.GZ, GZIP | ZIP | Built in; bounded safe extraction |
+| Archives | RAR, 7Z | ZIP | Optional 7-Zip; guarded extraction |
 
-No feature is currently marked TESTED or VERIFIED_ON_WINDOWS.
+## Important limits
+
+- The UI does not promise every source/target pairing. It offers registered actions for the current selection and detected engines.
+- FFmpeg codec/encoder support varies by build. Detecting FFmpeg does not guarantee HEIC/AVIF/WMA or every requested codec; failures surface in the wheel.
+- GIF to a still image exports one frame. Animated GIF creation from video is supported, but animation/metadata preservation across other formats is not promised.
+- PDF-to-office output is best-effort and may substantially alter layout. Scanned/image-only PDF OCR is not built in.
+- Apple Pages is not treated as a supported Windows input/output format. PDF split, watermarking, password tools, redaction and OCR are not connected yet.
+- Optional engine executables are not bundled by default. See `README.md` for official download sources and setup.
+- Native Explorer OLE drag/drop, modifier timing, focus behavior, DPI/multi-monitor placement and tray behavior still require hands-on Windows testing.

@@ -1,33 +1,26 @@
 # Architecture
 
-## Target architecture
+## File operation flow
 
-```text
-React + TypeScript UI
-  ├─ Home / Convert / Organize / Compress / Edit PDF / Protect / Batch & History / Settings
-  ├─ Shared typed operation registry (eligibility, options, required engines)
-  ├─ Shared job UI and output-validation state
-  └─ Narrow Tauri command interface
-          ↓
-Tauri 2 + Rust
-  ├─ Input identification and validation
-  ├─ Operation registry enforcement
-  ├─ Job queue, progress, cancellation where supported
-  ├─ Engine adapters (ZIP, qpdf, optional LibreOffice)
-  ├─ Collision-safe output paths and temporary workspaces
-  ├─ Output validation and measured byte counts
-  ├─ Minimal settings/history
-  └─ Windows-specific integration (only documented APIs)
-```
+The main workspace and native wheel share the central typed operation registry in `src/lib/operations.ts`. The registry filters operations by the selected file extensions, gesture mode and the detected availability of required local engines.
 
-This is the target design, not a description of fully implemented modules.
+The native command dispatcher (`src-tauri/src/lib.rs`) routes built-in raster image operations to `conversion_service.rs`, ZIP creation to `zip_service.rs`, and wider conversion/tool operations to `engine_service.rs`. Subprocess work and large file operations run on Tauri's blocking worker pool.
 
-## Boundaries
-- UI components render state and submit operation IDs; they do not implement conversion logic.
-- The same registry and job orchestration must back dashboard shortcuts, radial actions, and batch operations.
-- Rust validates every requested operation and path independently of frontend checks.
-- Engine adapters receive discrete arguments and app-owned working directories; do not construct shell command strings.
-- Successful process exit is only one signal. Validate outputs by reopening/parsing them and checking expected content or structure.
-- Preserve source inputs. Route output to separate SHIFT directories with collision-safe names.
-- Use bounded concurrency, bounded diagnostic output, timeouts, and cancellation only where the child engine can actually be stopped.
-- Tauri capabilities should grant the smallest required permissions. Never expose arbitrary command execution to the webview.
+## Engine choices
+
+- Built-in, size-conscious Rust code handles core raster image conversion, ZIP, TAR/TAR.GZ/GZIP, SRT/VTT and safe basic text-to-HTML output.
+- Optional local executables extend format breadth: FFmpeg for media/advanced codecs, LibreOffice for office-family conversion, qpdf/Poppler for PDF, 7-Zip for RAR/7Z, and Inkscape for SVG.
+- SHIFT does not silently install or bundle optional engines. Settings show detection status; an operation's failure is surfaced with a bounded diagnostic.
+- The wheel offers only combinations registered for the selected format/gesture and engine availability. FFmpeg encoder/codec presence and LibreOffice import/export fidelity can still vary by installation.
+
+## Safety
+
+- Calls pass separate command arguments and do not interpolate shell strings.
+- Windows child processes are configured not to create console windows.
+- Generated outputs are staged and checked for basic structural validity before being moved to collision-safe names. ZIPs are reopened and each regular entry is read.
+- Archive extraction rejects absolute/parent paths, links and special entries; limits entries, total expansion, path size and path depth.
+- Original inputs are never intentionally overwritten. Local operations do not require an account or upload.
+
+## Scope boundaries
+
+The service is not a sandbox or antivirus. Structural checks do not establish malware safety or visual fidelity. PDF split, watermark/password operations, OCR, speech-to-text, arbitrary extraction-to-folder UI and faithful Apple Pages conversion are not implemented. Explorer drag/drop, focus preservation, tray lifecycle and DPI behavior still require manual Windows verification.
