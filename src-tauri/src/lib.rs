@@ -42,11 +42,20 @@ struct WheelSizeStore {
     path: PathBuf,
 }
 
+fn validate_wheel_size(size: u32) -> Result<u32, String> {
+    if !(MIN_WHEEL_SIZE..=MAX_WHEEL_SIZE).contains(&size) {
+        return Err(format!(
+            "Wheel size must be between {MIN_WHEEL_SIZE}px and {MAX_WHEEL_SIZE}px."
+        ));
+    }
+    Ok(size)
+}
+
 fn load_wheel_size(path: &Path) -> u32 {
     fs::read_to_string(path)
         .ok()
         .and_then(|value| value.trim().parse::<u32>().ok())
-        .filter(|value| (MIN_WHEEL_SIZE..=MAX_WHEEL_SIZE).contains(value))
+        .and_then(|value| validate_wheel_size(value).ok())
         .unwrap_or(DEFAULT_WHEEL_SIZE)
 }
 
@@ -298,11 +307,7 @@ fn update_wheel_size(
     state: tauri::State<'_, WheelSizeStore>,
     size: u32,
 ) -> Result<u32, String> {
-    if !(MIN_WHEEL_SIZE..=MAX_WHEEL_SIZE).contains(&size) {
-        return Err(format!(
-            "Wheel size must be between {MIN_WHEEL_SIZE}px and {MAX_WHEEL_SIZE}px."
-        ));
-    }
+    validate_wheel_size(size)?;
     if let Some(parent) = state.path.parent() {
         fs::create_dir_all(parent)
             .map_err(|error| format!("Could not create the SHIFT settings folder: {error}"))?;
@@ -645,6 +650,25 @@ mod gesture_shortcut_tests {
         assert!(!gesture_shortcut_matches("shift", true, true, false));
         assert!(!gesture_shortcut_matches("ctrlShift", true, true, true));
         assert!(gesture_shortcut_matches("ctrlAlt", false, true, true));
+    }
+
+    #[test]
+    fn wheel_size_is_bounded() {
+        assert_eq!(validate_wheel_size(MIN_WHEEL_SIZE).unwrap(), MIN_WHEEL_SIZE);
+        assert_eq!(validate_wheel_size(MAX_WHEEL_SIZE).unwrap(), MAX_WHEEL_SIZE);
+        assert!(validate_wheel_size(MIN_WHEEL_SIZE - 1).is_err());
+        assert!(validate_wheel_size(MAX_WHEEL_SIZE + 1).is_err());
+    }
+
+    #[test]
+    fn invalid_or_missing_wheel_size_uses_default() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = folder.path().join("wheel-size.conf");
+        assert_eq!(load_wheel_size(&path), DEFAULT_WHEEL_SIZE);
+        fs::write(&path, "9999").unwrap();
+        assert_eq!(load_wheel_size(&path), DEFAULT_WHEEL_SIZE);
+        fs::write(&path, "440").unwrap();
+        assert_eq!(load_wheel_size(&path), 440);
     }
 
     #[test]
