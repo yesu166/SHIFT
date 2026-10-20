@@ -355,14 +355,41 @@ fn hide_wheel_overlay(app: AppHandle) -> Result<(), String> {
 fn start_drag_monitor(app: AppHandle, shortcut_store: GestureShortcutStore) {
     use std::{thread, time::Duration};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
-    use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetAncestor, GetClassNameW, GetCursorPos, WindowFromPoint, GA_ROOT,
+    };
 
     const VK_LBUTTON: i32 = 0x01;
     const VK_SHIFT: i32 = 0x10;
     const VK_CONTROL: i32 = 0x11;
     const VK_MENU: i32 = 0x12;
     let is_down = |key: i32| unsafe { (GetAsyncKeyState(key) as u16 & 0x8000) != 0 };
+    let is_shell_window = |point: windows_sys::Win32::Foundation::POINT| {
+        let child = unsafe { WindowFromPoint(point) };
+        if child.is_null() {
+            return false;
+        }
+        let root = unsafe { GetAncestor(child, GA_ROOT) };
+        if root.is_null() {
+            return false;
+        }
+        let mut class_name = [0_u16; 256];
+        let length = unsafe {
+            GetClassNameW(root, class_name.as_mut_ptr(), class_name.len() as i32)
+        };
+        let class = String::from_utf16_lossy(&class_name[..length.max(0) as usize]);
+        matches!(
+            class.as_str(),
+            "CabinetWClass"
+                | "ExploreWClass"
+                | "Progman"
+                | "WorkerW"
+                | "Shell_TrayWnd"
+                | "XamlExplorerHostIslandWindow"
+        )
+    };
     let mut mouse_down = false;
+    let mut shell_drag = false;
     let mut release_samples = 0_u8;
     let mut anchor = (0_i32, 0_i32);
     let mut gesture_active = false;
@@ -377,6 +404,9 @@ fn start_drag_monitor(app: AppHandle, shortcut_store: GestureShortcutStore) {
                 if !mouse_down {
                     anchor = (point.x, point.y);
                     mouse_down = true;
+                    // Resolve the drag origin once, while the cursor is over the
+                    // Desktop/File Explorer source. Foreground HWNDs can change mid-drag.
+                    shell_drag = is_shell_window(point);
                 }
                 let moved = (point.x - anchor.0).abs() + (point.y - anchor.1).abs() >= 9;
                 let shift = is_down(VK_SHIFT);
@@ -390,9 +420,9 @@ fn start_drag_monitor(app: AppHandle, shortcut_store: GestureShortcutStore) {
                 let requested_mode =
                     requested_wheel_mode(&current_shortcuts, shift, control, alt);
 
-                // Do not gate on the foreground HWND class: Windows can change the
-                // reported foreground window during an Explorer/desktop OLE drag.
-                if moved && !gesture_active {
+                // The drag origin is captured once; the wheel can then appear anywhere
+                // on the virtual desktop even as the foreground HWND changes.
+                if moved && !gesture_active && shell_drag {
                     if let Some(mode) = requested_mode {
                         if show_wheel_window(&app, mode).is_ok() {
                             gesture_active = true;
@@ -413,6 +443,7 @@ fn start_drag_monitor(app: AppHandle, shortcut_store: GestureShortcutStore) {
             // Explorer can briefly report the button up during OLE drag processing.
             if release_samples >= 4 {
                 mouse_down = false;
+                shell_drag = false;
                 if gesture_active {
                     let _ = app.emit("wheel-gesture-end", ());
                 }
