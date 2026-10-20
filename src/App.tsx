@@ -248,7 +248,7 @@ function App() {
   return <div className="app-shell">
     <aside className="sidebar">
       <button className="brand-lockup" type="button" onClick={() => setPage("home")} aria-label="SHIFT home">
-        <span className="brand-mark"><span /></span><span className="brand-name">shift<span>.</span><small>DOCUMENT TOOLBOX</small></span>
+        <span className="brand-mark"><span /></span><span className="brand-name">shift<span>.</span><small>LOCAL FILE UTILITY</small></span>
       </button>
       <div className="workspace-label">WORKSPACE <span>01</span></div>
       <nav className="primary-nav" aria-label="Main navigation">
@@ -285,7 +285,7 @@ function App() {
         <section className="wheel-instructions-card">
           <div className="wheel-instructions-icon"><Command size={20} /></div>
           <div className="wheel-instructions-copy">
-            <span className="eyebrow">GLOBAL QUICK ACTION</span>
+            <span className="eyebrow">DRAG WHEEL</span>
             <h2>Quick drag wheel</h2>
             <p>Start dragging from the Desktop or File Explorer, then hold <strong>Shift</strong> for Convert, <strong>Alt+Shift</strong> for tools, or <strong>Ctrl+Shift</strong> for File actions. Release over an action to run it, or press Escape to cancel.</p>
           </div>
