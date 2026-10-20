@@ -1,15 +1,19 @@
 # SHIFT
 
-SHIFT is a Windows-first, local-first contextual file wheel. Start dragging a file in File Explorer, tap a modifier, and choose a supported conversion/tool at the pointer. The native application is built with Rust, Tauri 2, React and TypeScript.
+SHIFT is a Windows-first, local-first contextual file wheel. Start dragging a file from the Windows Desktop or File Explorer, hold a configurable modifier combination, and the animated wheel appears near the pointer. Move over a supported conversion or tool and release the drag to run it. SHIFT saves the result beside the original as a new file and never intentionally replaces the source. The native application is built with Rust, Tauri 2, React and TypeScript. The wheel can appear over different parts of the virtual desktop; its position is bounded to keep it on the active monitor.
 
 SHIFT borrows the low-interruption *interaction pattern* of a contextual file wheel, not Tangerine's branding or assets. SHIFT is an independent project.
 
-## Gestures
+## Windows drag gestures
 
-- **Shift — Convert:** show compatible output formats for the current selection.
+Default shortcuts can be changed in **Settings → Drag gestures** and are stored locally for the next launch.
+
+- **Shift — Convert:** show compatible output formats for the dragged files.
 - **Alt + Shift — Tools:** compression and archive/PDF tools.
 - **Ctrl + Shift — File actions:** copy paths or open SHIFT's output destination.
 - **Escape — Cancel.**
+
+SHIFT resolves the drag source from the native Windows Desktop/File Explorer window under the pointer at drag start, rather than relying on the foreground window later in the drag. That allows the wheel to appear at the active pointer location even if Windows reports a different foreground HWND during the drag. The current global pointer monitor detects mouse drags before it knows their OLE payload, so the first end-to-end test should be a real file dragged from the Desktop or File Explorer. Modifier combinations can affect normal Windows drag semantics; adjust them in Settings if a default conflicts with your workflow.
 
 The wheel uses the current operation registry and the local tool availability reported by the Rust engine service. Unsupported file types, disabled engines and actions that do not match the selection are not offered as executable actions.
 
@@ -51,7 +55,7 @@ The **Settings → System status** section shows which tools SHIFT detects. Dete
 ## Output, safety and privacy
 
 - Core work happens locally and requires no account or upload service.
-- Image conversions save new sibling files; ZIP output is saved to Documents/SHIFT/Archives.
+- Image and engine-based conversions save new sibling files using names such as `photo (SHIFT converted).png`; numbered suffixes avoid replacing existing outputs. ZIP output is saved to Documents/SHIFT/Archives.
 - Generated outputs are staged, measured, and validated for their relevant file structure before finalization. Existing outputs are not intentionally overwritten.
 - Media processes use argument arrays rather than shell-string interpolation, run without a console window on Windows, and keep bounded error excerpts.
 - Archive conversion applies input bounds and rejects unsafe paths and link entries. A file on disk can still be malformed or malicious; validation is not a malware scanner.
