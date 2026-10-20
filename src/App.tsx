@@ -359,6 +359,18 @@ function App() {
           <section className="workspace-card settings-card wheel-size-card">
             <div className="settings-section-heading"><span className="settings-icon"><Command size={18} /></span><div><h2>Wheel size</h2><p>Choose how large the wheel appears around the pointer.</p></div></div>
             <div className="wheel-size-heading"><label htmlFor="wheel-size-slider">Wheel diameter</label><strong>{draftWheelSize}px</strong></div>
+            <div className="wheel-size-preview" aria-label={`Preview of a ${draftWheelSize} pixel wheel`}>
+              <div
+                className="wheel-size-preview-circle"
+                style={{ width: `${Math.round(184 * draftWheelSize / MAX_WHEEL_SIZE)}px`, height: `${Math.round(184 * draftWheelSize / MAX_WHEEL_SIZE)}px` }}
+              >
+                <i className="wheel-preview-action wheel-preview-top" />
+                <i className="wheel-preview-action wheel-preview-right" />
+                <i className="wheel-preview-action wheel-preview-bottom" />
+                <i className="wheel-preview-action wheel-preview-left" />
+                <span>SHIFT</span>
+              </div>
+            </div>
             <input
               id="wheel-size-slider"
               className="wheel-size-slider"
