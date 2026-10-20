@@ -48,7 +48,9 @@ describe("SHIFT operation registry", () => {
     const pdfOptions = getUnavailableWheelOperations(["report.pdf"], "convert");
     expect(pdfOptions.map((op) => op.id)).toContain("pdf-to-image-jpg");
     expect(pdfOptions.map((op) => op.id)).toContain("pdf-office-docx");
-    expect(getUnavailableWheelOperations(["photo.jpg"], "convert")).toEqual([]);
+    const imageOptions = getUnavailableWheelOperations(["photo.jpg"], "convert");
+    expect(imageOptions.map((op) => op.id)).toContain("ffmpeg-image-convert-avif");
+    expect(imageOptions.map((op) => op.id)).toContain("image-to-pdf");
     expect(getUnavailableWheelOperations(["photo.jpg"], "convert", installed)).toEqual([]);
   });
 
