@@ -160,26 +160,42 @@ fn system_cursor_position() -> Option<(i32, i32)> {
     None
 }
 
-fn position_wheel_near_cursor(window: &WebviewWindow, wheel_size: f64) -> Result<(), String> {
-    let Some((cursor_x, cursor_y)) = system_cursor_position() else {
+fn position_wheel_near_cursor(window: &WebviewWindow, requested_size: f64) -> Result<(), String> {
+    let cursor = system_cursor_position();
+    let monitors = window.available_monitors().unwrap_or_default();
+    let selected_monitor = cursor.as_ref().and_then(|(cursor_x, cursor_y)| {
+        monitors.iter().find(|monitor| {
+            let position = monitor.position();
+            let size = monitor.size();
+            *cursor_x >= position.x
+                && *cursor_y >= position.y
+                && *cursor_x < position.x + size.width as i32
+                && *cursor_y < position.y + size.height as i32
+        })
+    });
+    let scale = selected_monitor
+        .map(|monitor| monitor.scale_factor())
+        .unwrap_or_else(|| window.scale_factor().unwrap_or(1.0));
+
+    // Shrink the wheel on small or high-DPI monitors so its full hit area remains onscreen.
+    let wheel_size = selected_monitor
+        .map(|monitor| {
+            let monitor_size = monitor.size();
+            let available_logical = (monitor_size.width.min(monitor_size.height) as f64 / scale) - 24.0;
+            requested_size.min(available_logical.max(160.0))
+        })
+        .unwrap_or(requested_size);
+
+    window
+        .set_size(tauri::Size::Logical(tauri::LogicalSize::new(wheel_size, wheel_size)))
+        .map_err(|error| format!("Could not resize the SHIFT wheel: {error}"))?;
+
+    let Some((cursor_x, cursor_y)) = cursor else {
         return window
             .center()
             .map_err(|error| format!("Could not center the SHIFT wheel: {error}"));
     };
 
-    let monitors = window.available_monitors().unwrap_or_default();
-    let selected_monitor = monitors.into_iter().find(|monitor| {
-        let position = monitor.position();
-        let size = monitor.size();
-        cursor_x >= position.x
-            && cursor_y >= position.y
-            && cursor_x < position.x + size.width as i32
-            && cursor_y < position.y + size.height as i32
-    });
-    let scale = selected_monitor
-        .as_ref()
-        .map(|monitor| monitor.scale_factor())
-        .unwrap_or_else(|| window.scale_factor().unwrap_or(1.0));
     let width = (wheel_size * scale).round() as i32;
     let height = width;
     let mut left = cursor_x - width / 2;
@@ -187,9 +203,9 @@ fn position_wheel_near_cursor(window: &WebviewWindow, wheel_size: f64) -> Result
 
     if let Some(monitor) = selected_monitor {
         let position = monitor.position();
-        let size = monitor.size();
-        let max_left = (position.x + size.width as i32 - width).max(position.x);
-        let max_top = (position.y + size.height as i32 - height).max(position.y);
+        let monitor_size = monitor.size();
+        let max_left = (position.x + monitor_size.width as i32 - width).max(position.x);
+        let max_top = (position.y + monitor_size.height as i32 - height).max(position.y);
         left = left.clamp(position.x, max_left);
         top = top.clamp(position.y, max_top);
     }
@@ -213,12 +229,6 @@ fn show_wheel_window(app: &AppHandle, mode: &str) -> Result<(), String> {
         .read()
         .map(|size| *size)
         .unwrap_or(DEFAULT_WHEEL_SIZE);
-    window
-        .set_size(tauri::Size::Logical(tauri::LogicalSize::new(
-            wheel_size as f64,
-            wheel_size as f64,
-        )))
-        .map_err(|error| format!("Could not resize the SHIFT wheel: {error}"))?;
     position_wheel_near_cursor(&window, wheel_size as f64)?;
     window
         .show()
