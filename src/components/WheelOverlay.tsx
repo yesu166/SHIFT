@@ -98,6 +98,7 @@ function operationAt(position: PhysicalPoint): string | null {
 
 export default function WheelOverlay() {
   const [mode, setMode] = useState<WheelMode>("convert");
+  const [wheelOpenId, setWheelOpenId] = useState(0);
   const [dragPaths, setDragPaths] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
@@ -223,6 +224,9 @@ export default function WheelOverlay() {
         setNotice(null);
       }
     }).then((stop) => { if (cancelled) stop(); else unlisteners.push(stop); }).catch(() => {});
+    void listen("wheel-opened", () => {
+      setWheelOpenId((current) => current + 1);
+    }).then((stop) => { if (cancelled) stop(); else unlisteners.push(stop); }).catch(() => {});
     void listen("wheel-gesture-end", () => {
       // Give the WebView's native drop event time to start the operation before closing.
       window.setTimeout(() => { if (!busyRef.current) void hide(); }, 260);
@@ -286,7 +290,7 @@ export default function WheelOverlay() {
 
   return (
     <main className="shift-wheel-root" aria-label="SHIFT contextual file wheel">
-      <div className={"shift-wheel-shell" + (isDragging ? " is-dragging" : "") + (hoveredAction ? " is-over-zip" : "") + (summary ? " has-result" : "")}>
+      <div className={"shift-wheel-shell wheel-open-" + (wheelOpenId % 2) + (isDragging ? " is-dragging" : "") + (hoveredAction ? " is-over-zip" : "") + (summary ? " has-result" : "")}>
         <div className="shift-wheel-orbit" aria-hidden="true" />
         <div className="shift-wheel-center">
           <span className="shift-wheel-mark"><span /></span>
