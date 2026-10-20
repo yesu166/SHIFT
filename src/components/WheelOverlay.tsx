@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { formatBytes } from "../lib/format";
 import { getRadialPosition } from "../lib/radial";
-import { extensionOf, getWheelOperations, NO_OPTIONAL_ENGINES, type EngineAvailability } from "../lib/operations";
+import { extensionOf, getUnavailableWheelOperations, getWheelOperations, NO_OPTIONAL_ENGINES, type EngineAvailability, type RequiredEngine } from "../lib/operations";
 
 type WheelMode = "convert" | "tools" | "actions";
 type GestureShortcutId = "shift" | "ctrl" | "alt" | "ctrlShift" | "altShift" | "ctrlAlt" | "ctrlAltShift";
@@ -17,6 +17,14 @@ const DEFAULT_GESTURE_SHORTCUTS: GestureShortcuts = { convert: "shift", tools: "
 const SHORTCUT_LABELS: Record<GestureShortcutId, string> = {
   shift: "Shift", ctrl: "Ctrl", alt: "Alt", ctrlShift: "Ctrl + Shift",
   altShift: "Alt + Shift", ctrlAlt: "Ctrl + Alt", ctrlAltShift: "Ctrl + Alt + Shift",
+};
+const ENGINE_LABELS: Record<RequiredEngine, string> = {
+  ffmpeg: "FFmpeg",
+  libreOffice: "LibreOffice",
+  qpdf: "qpdf",
+  poppler: "Poppler",
+  sevenZip: "7-Zip",
+  inkscape: "Inkscape",
 };
 
 interface ZipResult {
@@ -125,6 +133,22 @@ export default function WheelOverlay() {
   const handledDropRef = useRef(false);
   const modeRef = useRef<WheelMode>("convert");
   const actions = useMemo(() => buildActions(dragPaths, mode, engineStatus), [dragPaths, mode, engineStatus]);
+  const unavailableActions = useMemo(
+    () => getUnavailableWheelOperations(dragPaths.map(leafName), mode, engineStatus),
+    [dragPaths, mode, engineStatus],
+  );
+  const missingEngines = useMemo(() => {
+    const required = new Set<RequiredEngine>();
+    for (const operation of unavailableActions) {
+      if (operation.requiredEngine && !engineStatus[operation.requiredEngine]) {
+        required.add(operation.requiredEngine);
+      }
+      for (const engine of operation.requiredEngines ?? []) {
+        if (!engineStatus[engine]) required.add(engine);
+      }
+    }
+    return Array.from(required).map((engine) => ENGINE_LABELS[engine]);
+  }, [unavailableActions, engineStatus]);
 
   useEffect(() => { busyRef.current = busy; }, [busy]);
   useEffect(() => { modeRef.current = mode; }, [mode]);
@@ -303,7 +327,9 @@ export default function WheelOverlay() {
     ? "Waiting for a file drag"
     : actions.length
       ? "Release over an action to run it"
-      : "No " + titleForMode(mode).toLowerCase() + " options for " + selectedTypeLabel;
+      : unavailableActions.length && missingEngines.length
+        ? "More options need " + missingEngines.join(", ")
+        : "No " + titleForMode(mode).toLowerCase() + " options for " + selectedTypeLabel;
   const modeHelp = alternateModeHint(mode, gestureShortcuts);
 
   return (
@@ -329,7 +355,10 @@ export default function WheelOverlay() {
             <>
               <span className="wheel-mode-label">{titleForMode(mode)}</span>
               <strong>{isDragging ? "Drop to run" : "SHIFT"}</strong>
-              <small>{isDragging ? dragPaths.length + " file" + (dragPaths.length === 1 ? "" : "s") + " detected" : actionHint}</small>
+              <small>{isDragging ? dragPaths.length + " file" + (dragPaths.length === 1 ? "" : "s") + " detected · " + actions.length + " option" + (actions.length === 1 ? "" : "s") : actionHint}</small>
+              {isDragging && unavailableActions.length > 0 && missingEngines.length > 0 && (
+                <small>{unavailableActions.length} more require {missingEngines.join(", ")}</small>
+              )}
             </>
           )}
         </div>
@@ -358,6 +387,7 @@ export default function WheelOverlay() {
           <div className="shift-wheel-no-actions">
             <Layers size={15} />
             <span>{actionHint}</span>
+            {missingEngines.length > 0 && <small>Install the tools and restart SHIFT to enable them.</small>}
             {dragPaths.length > 0 && <small>{modeHelp}</small>}
           </div>
         )}
