@@ -6,7 +6,7 @@ SHIFT borrows the low-interruption *interaction pattern* of a contextual file wh
 
 ## Windows drag gestures
 
-Default shortcuts can be changed in **Settings → Drag gestures** and are stored locally for the next launch.
+Shortcuts can be changed in **Settings → Drag shortcuts** and are stored locally. The wheel size can be adjusted from **Settings → Wheel size** (360–720 logical pixels); the selected size applies the next time the wheel opens.
 
 - **Shift — Convert:** show compatible output formats for the dragged files.
 - **Alt + Shift — Tools:** compression and archive/PDF tools.
@@ -15,7 +15,7 @@ Default shortcuts can be changed in **Settings → Drag gestures** and are store
 
 SHIFT resolves the drag source from the native Windows Desktop/File Explorer window under the pointer at drag start, rather than relying on the foreground window later in the drag. That allows the wheel to appear at the active pointer location even if Windows reports a different foreground HWND during the drag. The current global pointer monitor detects mouse drags before it knows their OLE payload, so the first end-to-end test should be a real file dragged from the Desktop or File Explorer. Modifier combinations can affect normal Windows drag semantics; adjust them in Settings if a default conflicts with your workflow.
 
-The wheel uses the current operation registry and the local tool availability reported by the Rust engine service. Unsupported file types, disabled engines and actions that do not match the selection are not offered as executable actions.
+The wheel uses the operation registry and local tool availability reported by the Rust engine service. It displays every matching action for the current selection, shrinking action tiles when needed to avoid crowding. If the current mode has no compatible action, it names the unsupported file type and shows the configured shortcuts for the other modes. Operations that require missing engines are not offered as executable actions.
 
 ## Format and engine matrix
 
@@ -63,7 +63,7 @@ The **Settings → System status** section shows which tools SHIFT detects. Dete
 
 ## Current verification status
 
-Frontend checks, Rust tests/Clippy and Windows installer creation run in [SHIFT CI](.github/workflows/ci.yml). A successful build does not establish working Explorer OLE drag/drop, focus preservation, multi-monitor placement, DPI scaling, or every external engine/codec. Those need hands-on verification on a Windows desktop.
+Frontend checks, Rust tests/Clippy and Windows installer creation run in [SHIFT CI](.github/workflows/ci.yml). A successful build does not establish working Desktop/Explorer OLE drag/drop, click-through behavior around the overlay, focus preservation, multi-monitor placement, DPI scaling, or every external engine/codec. Those still need hands-on verification on a Windows desktop. The wheel entrance and radial action tiles use separate short animations; the Reduce motion setting disables those animations.
 
 ## Development
 
