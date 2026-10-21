@@ -48,3 +48,7 @@ See [docs/SECURITY_AND_PERMISSIONS.md](docs/SECURITY_AND_PERMISSIONS.md) and [do
 ## License
 
 No project license has been selected yet. Until a license is added, do not assume the source is licensed for reuse or redistribution. Third-party notices will be maintained in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Project brief
+
+For the project's purpose, scope, current maturity, proposed roadmap, limitations, and collaboration opportunities, see [PROJECT_BRIEF.md](PROJECT_BRIEF.md).
